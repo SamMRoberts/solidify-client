@@ -2,12 +2,12 @@
 
 ## Current status
 
-solidify currently provides a dependency-free Rust Telnet framing library with a Cargo manifest, lockfile, and unit tests. The desktop client remains planned: no runnable application, transport, plugin API, CI workflow, or published documentation site exists. Directory guides distinguish the implemented parser from reserved subsystems.
+solidify currently provides a dependency-free Rust Telnet decoding/encoding library and configurable Q-method negotiation, with unit and in-memory peer integration tests. The desktop client remains planned: no runnable application, transport, option-specific behavior, plugin API, CI workflow, or published documentation site exists. Directory guides distinguish the implemented core from reserved subsystems.
 
 ## Architecture and extensions
 
 - [Architecture overview](architecture/overview.md): boundaries, ownership, and intended data flow.
-- [Protocol requirements](architecture/protocols.md): implemented framing contract, planned coverage, and parser acceptance criteria.
+- [Protocol requirements](architecture/protocols.md): implemented decoding, encoding, and negotiation contracts; planned coverage and acceptance criteria.
 - [Plugin design](plugins/design.md): extension points, runtime alternatives, isolation, and lifecycle.
 - [Plugin example guide](../examples/plugins/README.md): proposed runtime directories and future validation.
 

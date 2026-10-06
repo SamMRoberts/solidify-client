@@ -4,7 +4,7 @@ solidify is a planned cross-platform MUD client built around Rust and Tauri for 
 
 ## Project status
 
-The first development slice is a dependency-free Rust library for bounded streaming Telnet framing, with deterministic unit tests. It emits ordered raw-data, command, negotiation, and subnegotiation events without opening connections or deciding option policy. See the [implemented protocol contract](docs/architecture/protocols.md#implemented-telnet-framing).
+The implemented core is a dependency-free Rust library for bounded Telnet decoding and encoding, plus configurable RFC 1143 Q-method negotiation. It has deterministic unit tests and in-memory peer integration tests. Negotiation defaults to denying every option; allowing an option does not implement its behavior. See the [implemented protocol contracts](docs/architecture/protocols.md).
 
 There is no launchable application, Tauri initialization, frontend package, installer, or automated workflow yet. The broader client remains planned.
 
@@ -20,7 +20,7 @@ See [development setup](docs/development/setup.md) for library build, formatting
 
 ## Planned capabilities
 
-- Telnet transport and option negotiation, ANSI color handling, and MXP markup.
+- Telnet transport and option-specific behavior, ANSI color handling, and MXP markup.
 - GMCP, ATCP, and MSP extensions with session-scoped state and safe rendering.
 - An accessible terminal interface and persistent user settings.
 - A plugin system with proposed Rust dynamic-library, WebAssembly, Lua, and JavaScript options.
@@ -30,7 +30,7 @@ These are design intentions, not a claim of protocol compliance or available plu
 
 ## Repository layout
 
-The Rust library and its colocated parser tests live under `src-tauri/`, the future Tauri backend directory. Frontend responsibilities are reserved under `src/`, backend integration tests under `src-tauri/tests/`, application acceptance under `tests/`, parser fuzzing under `fuzz/`, and plugin examples under `examples/plugins/`. Those reserved areas contain guidance only.
+The Rust library and its colocated protocol unit tests live under `src-tauri/`, the future Tauri backend directory. Public-API wire integration tests live under `src-tauri/tests/`. Frontend responsibilities are reserved under `src/`, application acceptance under `tests/`, parser fuzzing under `fuzz/`, and plugin examples under `examples/plugins/`. Those reserved areas contain guidance only.
 
 The remaining directories cover tooling (`scripts/`), GitHub collaboration (`.github/`), development environments (`.devcontainer/`), documentation, and reference resources. Their contents are Markdown only.
 

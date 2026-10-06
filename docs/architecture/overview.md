@@ -2,11 +2,13 @@
 
 ## Status and direction
 
-This is the intended organization for a Rust/Tauri MUD client. Only the dependency-free Rust Telnet framing library is implemented, in the single `src-tauri/` package. Target platforms remain Windows, Linux, and macOS; current library verification does not establish desktop support. Tauri, the frontend, transport, IPC, and persistence are not implemented. No external API or serialization format is defined yet.
+This is the intended organization for a Rust/Tauri MUD client. Only the dependency-free Rust Telnet wire core is implemented, in the single `src-tauri/` package. Target platforms remain Windows, Linux, and macOS; current library verification does not establish desktop support. Tauri, the frontend, transport, IPC, and persistence are not implemented. No external API or serialization format is defined yet.
 
 ## Implemented data flow
 
 Caller-provided byte slices pass through `protocols::telnet::TelnetDecoder` to a synchronous callback receiving ordered raw-data and control events. Each instance owns its partial framing state. Data events and incomplete subnegotiations are bounded; the parser has no event queue. A consumer retaining events must bound its own queue. See the [framing contract](protocols.md#implemented-telnet-framing) for limits and lifecycle semantics.
+
+The caller may pass negotiation events to a separate `TelnetNegotiator`, which owns fixed local/remote option state and immutable allowlists. Its returned commands convert into existing events for `encode`, which emits bounded borrowed wire chunks. There is no session wrapper or transport: the caller preserves command/chunk order, owns delivery failures, and handles non-negotiation events. See the [negotiation contract](protocols.md#implemented-option-negotiation) before integrating option behavior.
 
 ## Responsibilities
 
@@ -17,7 +19,7 @@ Caller-provided byte slices pass through `protocols::telnet::TelnetDecoder` to a
 | Frontend bridge | Centralized native calls, event subscriptions, and error presentation |
 | Backend commands | Validated application entrypoints with narrow capabilities |
 | Sessions | Connections, task ownership, negotiation state, queues, and teardown |
-| Protocols | Telnet framing implemented independently of UI/networking; interpretation remains planned |
+| Protocols | Telnet decoding, encoding, and generic negotiation implemented independently of UI/networking; option-specific behavior and display interpretation remain planned |
 | Plugins | Compatibility, capabilities, callbacks, isolation, and lifecycle |
 | Storage | User settings, profiles, plugin namespaces, and safe persistence |
 

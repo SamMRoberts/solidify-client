@@ -2,7 +2,7 @@
 
 ## Scope
 
-Own the native application boundary, platform integration, and backend test package. These instructions supplement ancestor `AGENTS.md` files for this subtree. The directory currently contains a dependency-free Rust library and unit tests for Telnet framing; Tauri and transport are not initialized.
+Own the native application boundary, platform integration, and backend test package. These instructions supplement ancestor `AGENTS.md` files for this subtree. The directory currently contains a dependency-free Rust library for Telnet decoding, encoding, and Q-method negotiation, with unit and in-memory integration tests; Tauri and transport are not initialized.
 
 ## Working guidance
 

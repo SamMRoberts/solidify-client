@@ -1,9 +1,19 @@
-//! Streaming framing from [RFC 854](https://www.rfc-editor.org/rfc/rfc854)
+//! Byte framing and encoding from [RFC 854](https://www.rfc-editor.org/rfc/rfc854)
 //! and [RFC 855](https://www.rfc-editor.org/rfc/rfc855).
 //!
 //! Events preserve stream order. Only doubled IAC bytes are unescaped; text
-//! encodings, NVT newline rules, option policy, and command semantics are left
-//! to later layers. Unknown standalone command and option codes remain visible.
+//! encodings, NVT newline rules, and command semantics are left to later layers.
+//! The decoder remains policy-free; [`TelnetNegotiator`] separately implements
+//! configurable option negotiation. Unknown command and option codes remain visible.
+
+mod encoder;
+mod negotiation;
+
+pub use encoder::{EncodeError, MAX_ENCODED_CHUNK_BYTES, encode};
+pub use negotiation::{
+    NegotiationCommand, NegotiationError, NegotiationState, OptionDirection, OptionPolicy,
+    TelnetNegotiator,
+};
 
 use std::fmt;
 

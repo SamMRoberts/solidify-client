@@ -2,7 +2,7 @@
 
 ## Scope
 
-Own backend composition across commands, sessions, protocols, plugins, and storage. These instructions supplement ancestor `AGENTS.md` files for this subtree. Only the library entrypoint and Telnet framing under `protocols/` are implemented; other subsystems remain guidance only.
+Own backend composition across commands, sessions, protocols, plugins, and storage. These instructions supplement ancestor `AGENTS.md` files for this subtree. Only the library entrypoint and Telnet decoding, encoding, and generic negotiation under `protocols/` are implemented; other subsystems remain guidance only.
 
 ## Working guidance
 

@@ -2,21 +2,28 @@
 
 ## What works today
 
-The single Cargo package in `src-tauri/` builds a dependency-free Rust library and runs deterministic Telnet framing tests. Its manifest and lockfile are tracked. No launchable Rust/Tauri application, frontend package, development container, or CI workflow exists.
+The single Cargo package in `src-tauri/` builds a dependency-free Rust library for Telnet decoding, encoding, and Q-method negotiation. It runs deterministic unit tests and in-memory wire integration tests. Its manifest and lockfile are tracked. No launchable Rust/Tauri application, frontend package, development container, or CI workflow exists.
 
 The library uses Rust edition 2024 and declares Rust 1.99 as its minimum baseline. The initial local verification toolchain is Rust/Cargo 1.99.0 on macOS, with rustfmt and Clippy installed. No Rust toolchain manager configuration is added; use that toolchain for reproducible checks. Windows and Linux execution remain unverified.
 
-The parser requires no Tauri SDK, native webview dependencies, Node.js, package manager, special environment variables, sockets, credentials, or profiles. Do not run a project generator or install application dependencies solely from the directory scaffold. There is no launch command.
+The wire core requires no Tauri SDK, native webview dependencies, Node.js, package manager, special environment variables, sockets, credentials, or profiles. Do not run a project generator or install application dependencies solely from the directory scaffold. There is no launch command.
 
 ## Library commands
 
 Run these commands from the repository root. Dependency resolution stays locked and offline because this package uses only the Rust standard library.
 
 ```sh
-# Focused parser tests (currently the entire executable unit suite).
+# Protocol unit tests, including the existing decoder tests.
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline protocols::telnet
 
-# Full unit suite and doctests.
+# Focused outbound encoding and negotiation checks.
+cargo test --manifest-path src-tauri/Cargo.toml --locked --offline protocols::telnet::encoder
+cargo test --manifest-path src-tauri/Cargo.toml --locked --offline protocols::telnet::negotiation
+
+# Public-API in-memory peer integration tests.
+cargo test --manifest-path src-tauri/Cargo.toml --locked --offline --test telnet_wire
+
+# Full unit/integration suite and doctests.
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline
 
 # Read-only formatting check and lint check.
