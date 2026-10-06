@@ -2,9 +2,9 @@
 
 ## Current state and purpose
 
-solidify is a planned cross-platform MUD client using Rust and Tauri, targeting Windows, Linux, and macOS. The implemented core in `src-tauri/` provides Telnet decoding/encoding, configurable Q-method negotiation, bounded TCP sessions using pinned Tokio 1.53.2 on a caller-owned runtime, and independent bounded UTF-8/basic ANSI presentation decoding. Protocol modules remain independent of Tokio. Unit, in-memory peer, and loopback TCP tests exist. There is no launchable application, terminal renderer, option-specific behavior, Tauri initialization, frontend, or automation yet.
+solidify is a planned cross-platform MUD client using Rust and Tauri, targeting Windows, Linux, and macOS. The implemented core in `src-tauri/` provides Telnet decoding/encoding, configurable Q-method negotiation, bounded TCP sessions using pinned Tokio 1.53.2 on a caller-owned runtime, and independent bounded UTF-8/basic ANSI presentation decoding. Protocol modules remain independent of Tokio. Unit, in-memory peer, and loopback TCP tests exist. A feature-gated Tauri 2 desktop application and React/TypeScript frontend implement one connection, bounded styled transcripts, command entry, and a loopback demo. Option-specific behavior, persistence, plugins, installers, and automation remain deferred.
 
-Treat capabilities labeled planned in the design documents as requirements or proposals, not working features. Rust 1.99 is the library baseline; the frontend framework, Tauri version, plugin engines, and external API contracts are not selected. The library's Rust interfaces are internal project contracts. Do not infer implementation from directory names.
+Treat capabilities labeled planned in the design documents as requirements or proposals, not working features. Rust 1.99 is the library baseline; Tauri 2.12.1, React 19.3.0, TypeScript 7.0.2, Vite 8.3.3, and npm are selected and locked. Plugin engines and external plugin API contracts remain unselected. The library's Rust interfaces are internal project contracts. Do not infer implementation from directory names.
 
 ## Instruction scope
 
@@ -42,7 +42,7 @@ Keep shared engineering rules here and directory-specific rules close to their f
 
 For Markdown changes, inspect relative links, headings, instruction consistency, whitespace, and the complete diff including untracked files. Do not install an application toolchain just to validate documentation or the library.
 
-Use the [configured Cargo commands](docs/development/setup.md#library-commands): focused behavioral tests first, followed by formatting, lint, library build, and documentation checks. Do not invent frontend/package scripts or report hypothetical commands as executed. See the [testing strategy](docs/development/testing.md).
+Use the [configured Cargo commands](docs/development/setup.md#library-commands): focused behavioral tests first, followed by formatting, lint, library build, and documentation checks. Desktop/frontend changes also require the configured desktop-feature and npm checks plus separate browser/native acceptance. Do not invent frontend/package scripts or report hypothetical commands as executed. See the [testing strategy](docs/development/testing.md).
 
 Report what changed, what was verified, and what remains unverified. Separate documentation/static checks, automated tests, native application acceptance, and live-server evidence. A build does not prove runtime behavior.
 

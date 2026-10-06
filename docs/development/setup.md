@@ -2,18 +2,113 @@
 
 ## What works today
 
-The single Cargo package in `src-tauri/` builds a Rust library for Telnet decoding, encoding, Q-method negotiation, bounded TCP sessions, and independent UTF-8/basic ANSI presentation decoding. It runs deterministic unit tests, in-memory peer tests, and ephemeral loopback TCP tests. Its manifest and lockfile are tracked. No launchable Rust/Tauri application, frontend package, development container, or CI workflow exists.
+solidify has a single-connection desktop client and a separately usable Rust
+library. Tauri 2.12.1, React 19.3.0, TypeScript 7.0.2, Vite 8.3.3 and npm are
+selected; resolved dependencies are locked in Cargo.lock and package-lock.json.
+The library baseline is Rust/Cargo 1.99.0 (edition 2024), with Tokio pinned to
+1.53.2. Protocol modules do not depend on Tokio. The `desktop` feature gates all
+Tauri and serialization dependencies; library-only work needs neither Node nor
+native webview development dependencies.
 
-The library uses Rust edition 2024 and declares Rust 1.99 as its minimum baseline. The initial local verification toolchain is Rust/Cargo 1.99.0 on macOS, with rustfmt and Clippy installed. No Rust toolchain manager configuration is added; use that toolchain for reproducible checks. Windows and Linux execution remain unverified.
+Desktop checks were developed on macOS using Rust/Cargo 1.99.0 and Node 26.10.0 /
+npm 11.19.0. Use those versions for the documented baseline. Native builds also
+need the platform dependencies in the [official Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
+On macOS this includes Xcode Command Line Tools. Windows/Linux runtime acceptance,
+installers, signing, persistence and CI remain deferred. No credentials, profiles,
+or environment secrets are needed for local verification.
 
-Tokio is pinned to `=1.53.2`, with `rt`, `net`, `io-util`, `sync`, `time`, and `macros`; tests also enable `test-util`. The caller supplies a running Tokio runtime with I/O and timers enabled. The protocol modules remain independent of Tokio. No Tauri SDK, native webview dependencies, Node.js, credentials, or profiles are required. Do not run a project generator or install application dependencies solely from the directory scaffold. There is no launch command.
+## Launch the desktop and demo
+
+Run from the repository root:
+
+```sh
+npm ci
+cargo fetch --manifest-path src-tauri/Cargo.toml --locked
+
+# Terminal 1: one-client loopback demo, not a public MUD.
+npm run demo
+
+# Terminal 2: Vite and the native Tauri window.
+npm run tauri:dev
+```
+
+Click **Connect** with `localhost` and port `4000`. Nothing connects automatically.
+The demo prints its listening address. An alternate port is available with
+`npm run demo -- --port 4001`; enter the same port in the toolbar. The demo binds
+IPv4 loopback; hostname connection exercises resolver fallback where applicable.
+It handles one client at a time, caps command input at 16 KiB, and applies a
+five-second write deadline and five-minute input idle deadline. Stop it with
+Ctrl+C after closing the client. It prints no received commands or transcripts.
+
+`npm run dev` alone serves the real frontend at `http://localhost:1420` for layout
+inspection. A browser has no native connection bridge; use `tauri:dev` for TCP.
+Mocked bridges exist only in tests. Port 1420 must be free; close an independently
+started Vite instance before running `tauri:dev`.
+
+## Desktop and frontend commands
+
+```sh
+npm run typecheck
+npm test
+npm run format:check
+npm run build
+
+# Native feature validation, using cached locked dependencies.
+cargo check --manifest-path src-tauri/Cargo.toml --locked --offline --features desktop --all-targets
+cargo test --manifest-path src-tauri/Cargo.toml --locked --offline --features desktop
+cargo clippy --manifest-path src-tauri/Cargo.toml --locked --offline --features desktop --all-targets -- -D warnings
+cargo build --manifest-path src-tauri/Cargo.toml --locked --offline --features desktop
+cargo doc --manifest-path src-tauri/Cargo.toml --locked --offline --features desktop --no-deps
+
+# Production frontend plus native binary; no installer or signing workflow.
+npm run tauri:build
+```
+
+The production binary is `src-tauri/target/release/solidify` (`solidify.exe` on
+Windows). Unlike a direct Cargo development build, the Tauri build command enables
+its custom protocol and embeds `dist/`. It can run without Vite. On macOS, an
+optional local application bundle can be produced after the build:
+
+```sh
+npm exec tauri -- bundle --bundles app
+open src-tauri/target/release/bundle/macos/solidify.app
+```
+
+This creates a local `.app`, not a signed/notarized release or an installer.
+Do not run the bundle command on Windows/Linux. Generated assets, native build
+output, `dist/`, and `node_modules/` are ignored. Use Prettier on changed frontend
+files and `cargo fmt` on changed Rust files before checking formatting.
+
+## Manual desktop checklist
+
+1. Launch the demo and native client. Verify no automatic connection; Connect to
+   `localhost:4000`. Read “Streaming Unicode: 🌍 café” and `demo> ` before newline.
+2. Send `styles`, `unicode`, `controls`, and `markup`. Check basic colors/style
+   flags, whole grapheme deletion, CR replacement, eight-column tabs, and literal
+   angle-bracket markup. Try Enter and Send; verify the accepted draft clears.
+3. Toggle **Mask input**, send a harmless test command, and toggle it off. No local
+   command echo or history should appear. Send an empty line; preserve ordinary
+   spaces in a normal command. Do not use real credentials for this demo.
+4. Send `burst`, scroll upward, then send `help`. The viewport should stay in
+   place and show **Latest output**; click it to follow again. Clear output and
+   confirm subsequent output still uses the active style.
+5. Send `malformed`. Preceding text remains, a sanitized presentation error appears,
+   and the connection closes. Reconnect and verify the previous transcript is gone.
+   Send `quit` for clean EOF. Try a closed local port for a connection error.
+6. Reconnect, disconnect using the toolbar, reconnect once more, and close the
+   window while connected. The application must exit and the demo must accept a
+   fresh client. Check keyboard focus and resize to the 720×480 minimum.
+
+The client uses plain TCP. Public MUD connections are a separate, user-initiated
+manual activity and are not development acceptance. See the [desktop contracts](../architecture/desktop.md)
+for exact bounds, DNS cancellation, input, and transcript semantics.
 
 ## Library commands
 
 Run these commands from the repository root. Fetch the pinned dependencies first (network access and a writable Cargo cache are required). Subsequent checks use locked, offline resolution; an empty cache cannot run them until the fetch succeeds. Loopback tests need permission to bind local sockets, but no external server or configuration.
 
 ```sh
-# Fetch Tokio and its locked transitive dependencies before offline checks.
+# Fetch locked dependencies before offline checks.
 cargo fetch --manifest-path src-tauri/Cargo.toml --locked
 
 # Protocol unit tests, including the existing decoder tests.
@@ -34,6 +129,9 @@ cargo test --manifest-path src-tauri/Cargo.toml --locked --offline --test telnet
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline sessions::tests
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline --test tcp_sessions
 
+# Application ownership, DNS, polling and command-boundary checks.
+cargo test --manifest-path src-tauri/Cargo.toml --locked --offline application
+
 # Full unit/integration suite and doctests.
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline
 
@@ -46,26 +144,13 @@ cargo build --manifest-path src-tauri/Cargo.toml --locked --offline
 cargo doc --manifest-path src-tauri/Cargo.toml --locked --offline --no-deps
 ```
 
-`cargo fmt --manifest-path src-tauri/Cargo.toml` applies Rust formatting when needed. Build output and generated documentation are under the ignored `src-tauri/target/` directory; the documentation entrypoint is `src-tauri/target/doc/solidify_client/index.html`. These commands compile a library, not an application binary or installer.
+`cargo fmt --manifest-path src-tauri/Cargo.toml` applies Rust formatting when needed. Build output and generated documentation are under the ignored `src-tauri/target/` directory; the documentation entrypoint is `src-tauri/target/doc/solidify_client/index.html`. These commands leave the desktop feature disabled; no native binary or installer is built.
 
 If Cargo reports an unsupported Rust version, check `rustc --version` and `cargo --version` against the baseline. If formatting or lint tools are missing, that check cannot be reported as passing. Neither issue requires initializing Tauri or a frontend. Tests create and clean up their own local listeners; no manual server or disposable profile setup is needed.
 
-## Future bootstrap prerequisites
+## Documentation checks
 
-When desktop implementation is authorized, select and record compatible Tauri, frontend tooling, and package-manager versions alongside the Rust baseline. Establish their manifests and lockfiles before documenting installation commands.
-
-Tauri development needs Rust and platform-specific native dependencies. A JavaScript frontend toolchain may additionally need Node.js and its chosen package manager. Check the [official prerequisites](https://v2.tauri.app/start/prerequisites/) for the selected Tauri release and host platform. Container-based work will not replace native verification on all target systems.
-
-The future desktop setup guide must additionally describe:
-
-- Supported development hosts, required native dependencies, and pinned project tool versions.
-- Exact install, development, test, lint, formatting, and build commands with working directories.
-- Environment variables by purpose, without secrets or private endpoints.
-- Local test-server and disposable-profile setup.
-- Common failures, cleanup, and platform-specific limitations.
-
-`npm run tauri dev` is not configured. It becomes valid only if npm is selected and a matching script is defined; no frontend package-manager command is established here.
-
-## Documentation changes now
-
-Read [AGENTS.md](../../AGENTS.md) and the applicable directory guides. Review links and the complete change set, including untracked files. Use [testing guidance](testing.md) to report the checks performed without implying application validation.
+Read [AGENTS.md](../../AGENTS.md) and applicable directory guides. Review relative
+links, headings, instruction consistency, whitespace, and the complete diff,
+including new files. Follow [testing guidance](testing.md) when reporting separate
+automated, browser, native, and live-server evidence.

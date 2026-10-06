@@ -2,7 +2,7 @@
 
 ## Current state
 
-Executable unit tests for Telnet decoding, encoding, Q-method negotiation, and UTF-8/basic ANSI presentation decoding, plus deterministic session I/O tests, in-memory public-API wire tests, and TCP loopback tests, are configured through the `src-tauri/` Cargo package. There are no frontend tests, application acceptance tests, fuzz targets, or CI runners yet. The broader verification strategy below remains a requirement for future features, not completed application testing.
+Executable unit tests for Telnet decoding, encoding, Q-method negotiation, and UTF-8/basic ANSI presentation decoding, plus deterministic session I/O tests, in-memory public-API wire tests, and TCP loopback tests, are configured through the `src-tauri/` Cargo package. The application coordinator has injected-DNS and loopback tests; the React frontend has Vitest/jsdom tests. Browser and native macOS acceptance use the loopback demo. There is no automated native driver suite, fuzz target, or CI runner; broader future-feature scenarios below remain requirements rather than passing evidence.
 
 ## Implemented parser checks
 
@@ -18,7 +18,7 @@ Colocated encoder tests check exact wire bytes, all-byte escaping, every command
 
 `src-tauri/tests/telnet_wire.rs` connects two synthetic peers through the public encoder → decoder → negotiator APIs. Tests cover mutual acceptance, asymmetric refusal, simultaneous complementary requests, queued reversals/cancellation, and delivery of other events to the caller. Message queues are capped at 32 entries and each settling phase at 64 exchanges; tests assert exact exchange counts, final states, and quiescence. No server or private transcript is involved.
 
-Local automated verification is on macOS with Rust/Cargo 1.99.0. Windows/Linux execution, native Tauri acceptance, fuzzing, and live-server compatibility remain unverified. Protocol tests establish generic wire behavior; session tests add deterministic I/O and local TCP evidence. Separate presentation tests establish the documented text/style decoding subset. These checks do not establish option-specific implementations, rendering, or public-server compatibility.
+Local automated verification is on macOS with Rust/Cargo 1.99.0. Windows/Linux execution, fuzzing, and live-server compatibility remain unverified. Native macOS acceptance is recorded separately below. Protocol tests establish generic wire behavior; session tests add deterministic I/O and local TCP evidence. Separate presentation tests establish the documented text/style decoding subset. Protocol/library checks do not establish option-specific implementations, rendering, or public-server compatibility; frontend and native rendering checks are separate.
 
 ## Implemented presentation checks
 
@@ -50,15 +50,63 @@ verify session/socket cleanup. All 66 pre-presentation tests remain intact.
 
 The original 41 protocol tests remain intact. Loopback TCP evidence and deterministic adapter/clock evidence are separate from native application and public-server acceptance. Current execution is macOS only. See the [session contracts](../architecture/sessions.md) for queue sizes and the [setup commands](setup.md#library-commands) for dependency fetching and focused checks.
 
+## Implemented desktop checks
+
+Coordinator tests cover endpoint validation, immediate start IDs, concurrent/stale
+requests, injected DNS errors and empty/capped/duplicate results, ordered address
+fallback, overall DNS deadline, cancellation with a retained lookup slot, numeric
+bypass, EOF replacement, presentation failure, event/text pressure, poll limits,
+concurrent polls, exact command limits, queue-full rejection, and shutdown. A task
+panic test verifies that the session guard transfers ownership for awaited cleanup.
+Per-candidate connection timers use the existing session timeout implementation,
+whose deterministic clock tests remain intact. All 94 pre-desktop tests are retained.
+
+Frontend tests cover CRLF and standalone CR across batches, grapheme deletion
+across styles, tabs, bell, prompts, style-preserving clear, scalar-safe long-line
+breaks, line/byte/run retention, literal hostile markup, draft acceptance and
+rejection, masking, command bounds, focus, replacement/unmount cleanup, stale poll
+responses, single-poll delivery, and scroll-follow behavior. jsdom checks use
+mocked bridges and dimensions; they do not prove native IPC or browser geometry.
+
+Use the [configured desktop checks](setup.md#desktop-and-frontend-commands) and
+[manual checklist](setup.md#manual-desktop-checklist). Record browser, native, and
+local transport observations separately. The demo is development-only and uses
+synthetic text, one active client, bounded input, and loopback TCP.
+
+## Desktop acceptance evidence — 2026-10-06
+
+- **Automated macOS:** 106 library tests passed; the desktop-feature suite passed
+  107 tests, including the command-origin check. All original 94 tests and their
+  source files are unchanged. The 16 Vitest tests passed. TypeScript, Prettier,
+  Rust formatting, Clippy with warnings denied, library/desktop builds, API docs,
+  production frontend/native build, and Markdown/diff checks passed.
+- **Browser:** Codex IAB showed the compact toolbar, transcript and command layout
+  at the ordinary viewport and 720×480. DOM bounds showed no horizontal overflow
+  at the minimum size. Port validation, mask toggle and focus styling were checked;
+  no browser console errors were observed. No browser TCP/IPC success is claimed.
+- **Native macOS:** The bundled production app displayed fragmented ANSI/Unicode,
+  interleaved Telnet negotiation, and a prompt before newline. Enter and Send,
+  retained keyboard focus, masking, colors/style flags, CR/backspace/tab behavior,
+  literal markup, burst output, scroll hold/Latest output, clear, malformed ANSI,
+  refused local connection, clean EOF, disconnect and reconnect were exercised.
+  Window close ended the native process and the demo accepted a fresh client.
+  Window zoom/restoration worked; minimum-size geometry was verified in the browser.
+  The documented `tauri:dev` command also started Vite and its native process;
+  the complete UI workflow above was checked in the bundled production build.
+- **Unverified:** Windows/Linux runtime, installers/signing, public MUDs,
+  option-specific behavior, persistence, and plugins. No live credentials or
+  captured server transcripts were used. These observations are slice acceptance,
+  not a cross-platform or full-terminal compatibility claim.
+
 ## Verification layers
 
 | Layer | Location | Evidence required |
 |---|---|---|
 | Markdown review | Entire scaffold | Valid links, coherent instructions, accurate status, focused changes |
 | Protocol and domain unit tests | Telnet decoder, encoder, and negotiator tests colocated with their modules | Observable bytes/events and state transitions for deterministic inputs |
-| Backend integration | `src-tauri/tests/` | In-memory Telnet wire core and loopback TCP sessions implemented; commands, plugins, and storage remain planned |
-| Frontend checks | Alongside future frontend implementation | Rendering, interaction, accessibility, and bridge behavior |
-| Application acceptance | `tests/e2e/` | Complete workflows using disposable data and local services |
+| Backend integration | `src-tauri/tests/` | In-memory Telnet wire core and loopback TCP sessions implemented; application coordinator loopbacks are colocated under `src/application`; plugins and storage remain planned |
+| Frontend checks | Colocated Vitest tests under `src/` | Rendering, interaction, accessibility, and bridge behavior |
+| Application acceptance | `tests/e2e/` | Manual checklist with the Rust loopback demo; no automated native driver suite |
 | Parser fuzzing | `fuzz/fuzz_targets/` | Bounded runs, reproducible failures, and regression inputs |
 | Native platform acceptance | Built application on each target OS | Real Tauri transport, UI, callbacks, persistence, and packaging behavior |
 | Live-server acceptance | Explicitly authorized sessions | Server-specific behavior with redacted evidence and stated limits |

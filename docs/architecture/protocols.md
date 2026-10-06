@@ -2,7 +2,7 @@
 
 ## Status
 
-Byte-level Telnet decoding/encoding, configurable Q-method negotiation, and independent bounded UTF-8/basic ANSI presentation decoding are implemented. Bounded TCP transport is implemented separately in [sessions](sessions.md); option-specific behavior, rendering, and other extension interpretation remain planned. The references below establish wire syntax and negotiation behavior, not a claim of complete Telnet or MUD compatibility.
+Byte-level Telnet decoding/encoding, configurable Q-method negotiation, and independent bounded UTF-8/basic ANSI presentation decoding are implemented. Bounded TCP transport is implemented separately in [sessions](sessions.md); a separate [desktop layer](desktop.md) renders basic styled text and line controls. Option-specific behavior and other extension interpretation remain planned. The references below establish wire syntax and negotiation behavior, not a claim of complete Telnet or MUD compatibility.
 
 ## Implemented Telnet framing
 
@@ -21,7 +21,7 @@ Framing follows the command structure in [RFC 854](https://www.rfc-editor.org/rf
 
 The local malformed-input policy is strict: stray `IAC SE`, any command other than `IAC` or `SE` after `IAC` inside a payload, and exceeding the decoded payload limit fail immediately. Incomplete payloads are discarded, the remaining input is not processed, and subsequent feed/finish calls return `DecoderFailed`. Previously delivered events remain valid. Errors contain categories/control metadata, never transcript payloads. `reset()` discards partial state and allows reuse after partial input, failure, or successful finish; it emits nothing.
 
-These are initial internal project APIs, not stable plugin contracts. NVT newline conversion, option-specific behavior, command actions/TCP urgent handling, MXP, GMCP/ATCP/MSP, and rendering are not implemented. Character decoding and basic ANSI styling are implemented separately below. The Telnet decoder's strict rejection policy is a local choice, not a universal server recovery rule.
+These are initial internal project APIs, not stable plugin contracts. NVT newline conversion, option-specific behavior, command actions/TCP urgent handling, MXP, GMCP/ATCP/MSP, and rendering are not implemented by this wire module. Character decoding and basic ANSI styling are implemented separately below. The Telnet decoder's strict rejection policy is a local choice, not a universal server recovery rule.
 
 ## Presentation decoder contract
 
@@ -133,7 +133,7 @@ Process received negotiation events in order and deliver returned commands in op
 | Protocol | Intended capability | Reference |
 |---|---|---|
 | Telnet | Decoding, encoding, generic negotiation, and separate TCP sessions implemented; option-specific behavior planned | [RFC 854](https://www.rfc-editor.org/rfc/rfc854), [RFC 855](https://www.rfc-editor.org/rfc/rfc855), [RFC 1143](https://www.rfc-editor.org/rfc/rfc1143) |
-| UTF-8 and ANSI controls | Bounded text decoding, basic SGR, and nonexecuting control events implemented; rendering and other styles deferred | [RFC 3629](https://www.rfc-editor.org/rfc/rfc3629), [ECMA-48](https://ecma-international.org/publications-and-standards/standards/ecma-48/) |
+| UTF-8 and ANSI controls | Bounded text decoding, basic SGR, and nonexecuting control events implemented; basic desktop rendering implemented separately; other styles deferred | [RFC 3629](https://www.rfc-editor.org/rfc/rfc3629), [ECMA-48](https://ecma-international.org/publications-and-standards/standards/ecma-48/) |
 | MXP | Supported markup converted into safe client display/actions | [Zugg Software MXP specification](https://www.zuggsoft.com/zmud/mxp.htm) |
 | GMCP | Negotiated structured messages and documented package handling | [Aardwolf GMCP documentation](https://www.aardwolf.com/wiki/index.php/Clients/GMCP), a server-specific reference |
 | ATCP | Negotiated structured extension messages | [Iron Realms ATCP reference](https://www.ironrealms.com/rapture/manual/files/FeatATCP-txt.html) |

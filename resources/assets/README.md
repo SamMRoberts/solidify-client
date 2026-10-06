@@ -2,7 +2,7 @@
 
 ## Current contents
 
-No images, icons, fonts, audio, or other binary assets are included. No asset license or project-wide license is implied by this scaffold.
+The original solidify icon source is `src-tauri/icons/solidify.svg` (64×64). Its 32×32 PNG export is used by Tauri. Both were authored for this project in this development slice; there is no external source, stock material, font, or attribution obligation. The PNG was exported with the locked Tauri CLI. No third-party license is attached; reuse follows whatever project licensing is later established. No external redistribution rights or project-wide license are asserted. No audio or bundled fonts are included.
 
 ## Metadata required before adding assets
 

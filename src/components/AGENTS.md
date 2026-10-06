@@ -2,7 +2,7 @@
 
 ## Scope
 
-Own reusable controls, panels, notifications, and layout. These instructions supplement ancestor `AGENTS.md` files for this subtree. The directory currently contains documentation only.
+Own reusable controls, panels, notifications, and layout. These instructions supplement ancestor `AGENTS.md` files for this subtree. Connection controls and command entry are implemented with explicit props and acceptance-based draft clearing.
 
 ## Working guidance
 

@@ -5,8 +5,22 @@ edition = "2024"
 rust-version = "1.99"
 publish = false
 
+[features]
+default = []
+desktop = ["dep:tauri", "dep:tauri-build", "dep:serde"]
+
+[[bin]]
+name = "solidify"
+path = "src/main.rs"
+required-features = ["desktop"]
+
+[build-dependencies]
+tauri-build = { version = "=2.7.1", optional = true, features = [] }
+
 [dependencies]
 tokio = { version = "=1.53.2", features = ["rt", "net", "io-util", "sync", "time", "macros"] }
+tauri = { version = "=2.12.1", optional = true, features = [] }
+serde = { version = "1", features = ["derive"], optional = true }
 
 [dev-dependencies]
 tokio = { version = "=1.53.2", features = ["test-util"] }

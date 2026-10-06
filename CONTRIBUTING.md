@@ -4,7 +4,7 @@
 
 Read the [repository instructions](AGENTS.md), the nested instructions for the affected directories, and the relevant [design documentation](docs/README.md). Inspect Git status and preserve existing work.
 
-The project currently implements a Rust Telnet decoding/encoding library, configurable Q-method negotiation, and bounded Tokio TCP sessions; the desktop client remains planned. Documentation tasks should not initialize an application or add dependencies. Follow the [library setup and commands](docs/development/setup.md) for Rust work, and keep future implementation changes within their approved scope.
+The project implements a Rust Telnet/presentation/session library and a feature-gated Tauri 2 desktop client with a React/TypeScript frontend and loopback demo. Documentation tasks should not initialize an application or add dependencies. Follow the [library, desktop, and frontend commands](docs/development/setup.md) for executable work, and keep future implementation changes within their approved scope.
 
 ## Contributions
 

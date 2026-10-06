@@ -2,7 +2,7 @@
 
 ## Scope
 
-Own full application workflows once the application and a suitable driver exist. These instructions supplement ancestor `AGENTS.md` files for this subtree. The directory currently contains documentation only.
+Own native application workflow guidance; the current local demo checklist lives in `docs/development/setup.md`. These instructions supplement ancestor `AGENTS.md` files for this subtree. The directory currently contains documentation only.
 
 ## Working guidance
 

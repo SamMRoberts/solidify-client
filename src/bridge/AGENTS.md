@@ -2,7 +2,7 @@
 
 ## Scope
 
-Own the frontend boundary for native commands and event subscriptions. These instructions supplement ancestor `AGENTS.md` files for this subtree. The directory currently contains documentation only.
+Own the frontend boundary for native commands and event subscriptions. These instructions supplement ancestor `AGENTS.md` files for this subtree. Four native invocations and a single cancellable poll chain are implemented; mocked bridges belong only in tests.
 
 ## Working guidance
 
@@ -12,4 +12,4 @@ Own the frontend boundary for native commands and event subscriptions. These ins
 
 ## Verification
 
-Verify rejected payloads, cancellation or stale responses, disconnects, and repeated subscribe/unsubscribe cycles once IPC exists.
+Verify rejected payloads, cancellation or stale responses, disconnects, and repeated subscribe/unsubscribe cycles using the configured frontend tests and separate native acceptance.

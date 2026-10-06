@@ -2,7 +2,7 @@
 
 ## Scope
 
-Own application presentation and client-side interaction; the framework is not selected. These instructions supplement ancestor `AGENTS.md` files for this subtree. The directory currently contains documentation only.
+Own application presentation and client-side interaction using React, TypeScript, and Vite. These instructions supplement ancestor `AGENTS.md` files for this subtree. The single-connection desktop UI, bridge, bounded transcript model, and colocated Vitest tests are implemented.
 
 ## Working guidance
 
@@ -12,4 +12,4 @@ Own application presentation and client-side interaction; the framework is not s
 
 ## Verification
 
-Review keyboard navigation, session switching, rendering safety, and listener cleanup; use the frontend checks once configured.
+Review keyboard navigation, session switching, rendering safety, and listener cleanup; run the configured typecheck, tests, formatting, and build commands. Keep browser evidence separate from native IPC acceptance.

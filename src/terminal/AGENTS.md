@@ -2,7 +2,7 @@
 
 ## Scope
 
-Own output display, scrollback, text selection, and command-entry interaction. These instructions supplement ancestor `AGENTS.md` files for this subtree. The directory currently contains documentation only.
+Own output display, scrollback, text selection, and command-entry interaction. These instructions supplement ancestor `AGENTS.md` files for this subtree. The bounded transcript model and React renderer implement styled text and basic line controls, not a terminal cell grid.
 
 ## Working guidance
 
