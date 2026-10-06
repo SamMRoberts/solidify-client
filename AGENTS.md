@@ -2,9 +2,9 @@
 
 ## Current state and purpose
 
-solidify is a planned cross-platform MUD client using Rust and Tauri, targeting Windows, Linux, and macOS. This repository currently contains a Markdown-only scaffold: no application code, manifests, executable tests, build commands, or automation have been implemented.
+solidify is a planned cross-platform MUD client using Rust and Tauri, targeting Windows, Linux, and macOS. The first implemented slice is a dependency-free Rust Telnet framing library in `src-tauri/`, with a Cargo manifest, lockfile, and colocated unit tests. There is no launchable application, transport, Tauri initialization, frontend, or automation yet.
 
-Treat capabilities in the design documents as requirements or proposals, not working features. The frontend framework, dependency versions, plugin engines, and public API contracts are not selected. Do not infer implementation from directory names.
+Treat capabilities labeled planned in the design documents as requirements or proposals, not working features. Rust 1.99 is the library baseline; the frontend framework, Tauri/dependency versions, plugin engines, and external API contracts are not selected. The decoder's Rust interface is an internal project contract. Do not infer implementation from directory names.
 
 ## Instruction scope
 
@@ -31,7 +31,7 @@ Keep shared engineering rules here and directory-specific rules close to their f
 
 - Inspect existing files, Git status, relevant architecture, and actual configuration before changes. Preserve unrelated and uncommitted work.
 - Make the smallest coherent change. Follow established patterns; avoid speculative abstractions, unrelated refactors, and dependency changes.
-- Keep code readable, testable, and maintainable when implementation begins. Preserve compatibility unless the task requires a breaking change; document any such change.
+- Keep code readable, testable, and maintainable. Preserve compatibility unless the task requires a breaking change; document any such change.
 - Treat network traffic, markup, IPC payloads, plugin input, and imported files as untrusted. Validate at boundaries and keep credentials out of logs and fixtures.
 - Handle credible failures deliberately: cancellation, disconnects, partial writes, resource cleanup, bounded buffers, and plugin failures belong to their owning subsystems.
 - Preserve user profile and map data. Use disposable state for verification and do not connect to live MUDs as an implicit test step.
@@ -40,9 +40,9 @@ Keep shared engineering rules here and directory-specific rules close to their f
 
 ## Verification and completion
 
-For Markdown changes, inspect relative links, headings, instruction consistency, whitespace, and the complete diff including untracked files. Do not install an application toolchain just to validate this scaffold.
+For Markdown changes, inspect relative links, headings, instruction consistency, whitespace, and the complete diff including untracked files. Do not install an application toolchain just to validate documentation or the dependency-free parser.
 
-Once manifests and test tooling exist, use their defined commands: focused behavioral tests first, followed by relevant formatting checks, linting, type checks, and builds. Do not invent package scripts or report hypothetical commands as executed. See the [testing strategy](docs/development/testing.md).
+Use the [configured Cargo commands](docs/development/setup.md#library-commands): focused behavioral tests first, followed by formatting, lint, library build, and documentation checks. Do not invent frontend/package scripts or report hypothetical commands as executed. See the [testing strategy](docs/development/testing.md).
 
 Report what changed, what was verified, and what remains unverified. Separate documentation/static checks, automated tests, native application acceptance, and live-server evidence. A build does not prove runtime behavior.
 

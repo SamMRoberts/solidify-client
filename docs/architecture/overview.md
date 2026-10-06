@@ -2,7 +2,11 @@
 
 ## Status and direction
 
-This is the intended organization for a Rust/Tauri MUD client, not an implemented architecture. Target platforms are Windows, Linux, and macOS. The frontend remains framework-neutral, and the backend occupies one Tauri application directory. No public API or serialization format is defined yet.
+This is the intended organization for a Rust/Tauri MUD client. Only the dependency-free Rust Telnet framing library is implemented, in the single `src-tauri/` package. Target platforms remain Windows, Linux, and macOS; current library verification does not establish desktop support. Tauri, the frontend, transport, IPC, and persistence are not implemented. No external API or serialization format is defined yet.
+
+## Implemented data flow
+
+Caller-provided byte slices pass through `protocols::telnet::TelnetDecoder` to a synchronous callback receiving ordered raw-data and control events. Each instance owns its partial framing state. Data events and incomplete subnegotiations are bounded; the parser has no event queue. A consumer retaining events must bound its own queue. See the [framing contract](protocols.md#implemented-telnet-framing) for limits and lifecycle semantics.
 
 ## Responsibilities
 
@@ -13,7 +17,7 @@ This is the intended organization for a Rust/Tauri MUD client, not an implemente
 | Frontend bridge | Centralized native calls, event subscriptions, and error presentation |
 | Backend commands | Validated application entrypoints with narrow capabilities |
 | Sessions | Connections, task ownership, negotiation state, queues, and teardown |
-| Protocols | Streaming framing and interpretation independent of UI or live networking |
+| Protocols | Telnet framing implemented independently of UI/networking; interpretation remains planned |
 | Plugins | Compatibility, capabilities, callbacks, isolation, and lifecycle |
 | Storage | User settings, profiles, plugin namespaces, and safe persistence |
 

@@ -2,7 +2,7 @@
 
 ## Scope
 
-Own the native application boundary, platform integration, and backend test package. These instructions supplement ancestor `AGENTS.md` files for this subtree. The directory currently contains documentation only.
+Own the native application boundary, platform integration, and backend test package. These instructions supplement ancestor `AGENTS.md` files for this subtree. The directory currently contains a dependency-free Rust library and unit tests for Telnet framing; Tauri and transport are not initialized.
 
 ## Working guidance
 
@@ -12,4 +12,4 @@ Own the native application boundary, platform integration, and backend test pack
 
 ## Verification
 
-Use the backend manifest and configured formatting/lint/build checks once present; verify platform claims on the corresponding OS.
+Run the [library commands](../docs/development/setup.md#library-commands) from the repository root using this directory's Cargo manifest. Keep the lockfile tracked. Verify platform claims on the corresponding OS; library checks do not establish native application acceptance.

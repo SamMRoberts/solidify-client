@@ -4,7 +4,7 @@
 
 Read the [repository instructions](AGENTS.md), the nested instructions for the affected directories, and the relevant [design documentation](docs/README.md). Inspect Git status and preserve existing work.
 
-The project is currently a Markdown-only scaffold. Documentation tasks should not initialize an application or add dependencies. Future implementation changes should establish actual manifests, tooling, and documented commands within their approved scope.
+The project currently implements a dependency-free Rust Telnet framing library; the desktop client remains planned. Documentation tasks should not initialize an application or add dependencies. Follow the [library setup and commands](docs/development/setup.md) for Rust work, and keep future implementation changes within their approved scope.
 
 ## Contributions
 
@@ -16,7 +16,7 @@ No project license or contributor agreement is established by this scaffold. Rec
 
 ## Validation
 
-For Markdown, check relative links, heading structure, instruction consistency, whitespace, and new files as well as tracked diffs. For later implementation, follow the [testing strategy](docs/development/testing.md) and commands defined by the actual manifests.
+For Markdown, check relative links, heading structure, instruction consistency, whitespace, and new files as well as tracked diffs. For Rust changes, follow the [testing strategy](docs/development/testing.md) and configured Cargo commands. Parser tests must cover observable events, chunk boundaries, bounds, and failure/reset behavior without live servers.
 
 A change report should name the checks performed, their results, and any checks not run with reasons. Separate automated results from native application and live-server acceptance. Use local emulation and disposable data by default.
 
