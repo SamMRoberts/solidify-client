@@ -2,12 +2,13 @@
 
 ## Current status
 
-solidify currently provides a Markdown-only scaffold for a future Rust/Tauri MUD client. There is no runnable application, protocol implementation, plugin API, dependency manifest, CI workflow, or published documentation site. Directory guides describe responsibilities for later work.
+solidify currently provides Telnet decoding/encoding, configurable Q-method negotiation, and bounded Tokio TCP sessions, with unit, in-memory peer, and loopback integration tests. The desktop client remains planned: no runnable application, option-specific behavior, plugin API, CI workflow, or published documentation site exists. Directory guides distinguish the implemented core from reserved subsystems.
 
 ## Architecture and extensions
 
 - [Architecture overview](architecture/overview.md): boundaries, ownership, and intended data flow.
-- [Protocol requirements](architecture/protocols.md): planned coverage and parser acceptance criteria.
+- [Protocol requirements](architecture/protocols.md): implemented decoding, encoding, and negotiation contracts; planned coverage and acceptance criteria.
+- [TCP sessions](architecture/sessions.md): public API, ownership, queue bounds, cancellation, and shutdown contracts.
 - [Plugin design](plugins/design.md): extension points, runtime alternatives, isolation, and lifecycle.
 - [Plugin example guide](../examples/plugins/README.md): proposed runtime directories and future validation.
 

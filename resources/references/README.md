@@ -1,6 +1,6 @@
 # Primary references
 
-These links were opened and checked for title and relevance on 2026-10-06. They support future design work, not a declaration of implemented support. Source versions are references rather than selected project dependencies. Recheck version-specific guidance when implementation begins.
+These links were opened and checked for title and relevance on 2026-10-06, including the RFC 1143 and Tokio additions. They support protocol implementation and future design work; the [protocol contracts](../../docs/architecture/protocols.md) and [session contracts](../../docs/architecture/sessions.md) identify actual support. Tokio 1.53.2 is the selected session dependency; other source versions are references unless explicitly selected.
 
 ## Agent instructions and Tauri
 
@@ -12,12 +12,22 @@ These links were opened and checked for title and relevance on 2026-10-06. They 
 | [Tauri distribution](https://v2.tauri.app/distribute/) | Platform packaging and distribution |
 | [Tauri updater](https://v2.tauri.app/plugin/updater/) | Updater integration and artifact signatures |
 
+## TCP session runtime
+
+Checked on 2026-10-06. Tokio is distributed under the MIT license; Cargo fetches the dependency source, and no upstream manual is vendored here. This does not establish a project license.
+
+| Source | Relevance and limits |
+|---|---|
+| [Tokio 1.53.2](https://docs.rs/tokio/1.53.2/tokio/) | Selected runtime library and feature flags; the caller owns the runtime |
+| [Tokio select cancellation safety](https://docs.rs/tokio/1.53.2/tokio/macro.select.html#cancellation-safety) | Cancel-safe reads/receives and cancellation hazards for compound writes; session partial writes terminate rather than restart |
+
 ## Protocols
 
 | Source | Relevance and limits |
 |---|---|
 | [RFC 854](https://www.rfc-editor.org/rfc/rfc854) | Telnet transport semantics and negotiation |
 | [RFC 855](https://www.rfc-editor.org/rfc/rfc855) | Telnet option specifications |
+| [RFC 1143: The Q Method of Implementing TELNET Option Negotiation](https://www.rfc-editor.org/rfc/rfc1143) | Section 7 state transitions used by the generic negotiator; no option-specific semantics or transport coverage |
 | [ECMA-48](https://ecma-international.org/publications-and-standards/standards/ecma-48/) | Control functions underlying terminal behavior; the supported subset must be documented |
 | [Zugg Software MXP specification](https://www.zuggsoft.com/zmud/mxp.htm) | Protocol-author reference for MUD markup |
 | [Zugg Software MSP specification](https://www.zuggsoft.com/zmud/msp.htm) | Protocol-author reference for sound directives |
