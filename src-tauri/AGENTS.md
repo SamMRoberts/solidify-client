@@ -2,7 +2,7 @@
 
 ## Scope
 
-Own the native application boundary, platform integration, and backend test package. These instructions supplement ancestor `AGENTS.md` files for this subtree. The directory currently contains a dependency-free Rust library for Telnet decoding, encoding, and Q-method negotiation, with unit and in-memory integration tests; Tauri and transport are not initialized.
+Own the native application boundary, platform integration, and backend test package. These instructions supplement ancestor `AGENTS.md` files for this subtree. The directory currently contains a Rust library for Telnet decoding, encoding, Q-method negotiation, and bounded TCP sessions using pinned Tokio 1.53.2. Unit, in-memory peer, and loopback tests exist; Tauri is not initialized.
 
 ## Working guidance
 
@@ -12,4 +12,4 @@ Own the native application boundary, platform integration, and backend test pack
 
 ## Verification
 
-Run the [library commands](../docs/development/setup.md#library-commands) from the repository root using this directory's Cargo manifest. Keep the lockfile tracked. Verify platform claims on the corresponding OS; library checks do not establish native application acceptance.
+Run the [library commands](../docs/development/setup.md#library-commands) from the repository root using this directory's Cargo manifest. Keep the lockfile tracked; fetch locked dependencies before offline checks. Do not introduce Tokio into pure protocol modules. Verify platform claims on the corresponding OS; library checks do not establish native application acceptance.

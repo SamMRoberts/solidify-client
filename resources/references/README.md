@@ -1,6 +1,6 @@
 # Primary references
 
-These links were opened and checked for title and relevance on 2026-10-06, including the RFC 1143 addition. They support protocol implementation and future design work; the [protocol contracts](../../docs/architecture/protocols.md) identify actual support. Source versions are references rather than selected project dependencies. Recheck version-specific guidance when implementation begins.
+These links were opened and checked for title and relevance on 2026-10-06, including the RFC 1143 and Tokio additions. They support protocol implementation and future design work; the [protocol contracts](../../docs/architecture/protocols.md) and [session contracts](../../docs/architecture/sessions.md) identify actual support. Tokio 1.53.2 is the selected session dependency; other source versions are references unless explicitly selected.
 
 ## Agent instructions and Tauri
 
@@ -11,6 +11,15 @@ These links were opened and checked for title and relevance on 2026-10-06, inclu
 | [Tauri security](https://v2.tauri.app/security/) | Native/frontend trust boundaries and permissions |
 | [Tauri distribution](https://v2.tauri.app/distribute/) | Platform packaging and distribution |
 | [Tauri updater](https://v2.tauri.app/plugin/updater/) | Updater integration and artifact signatures |
+
+## TCP session runtime
+
+Checked on 2026-10-06. Tokio is distributed under the MIT license; Cargo fetches the dependency source, and no upstream manual is vendored here. This does not establish a project license.
+
+| Source | Relevance and limits |
+|---|---|
+| [Tokio 1.53.2](https://docs.rs/tokio/1.53.2/tokio/) | Selected runtime library and feature flags; the caller owns the runtime |
+| [Tokio select cancellation safety](https://docs.rs/tokio/1.53.2/tokio/macro.select.html#cancellation-safety) | Cancel-safe reads/receives and cancellation hazards for compound writes; session partial writes terminate rather than restart |
 
 ## Protocols
 

@@ -6,3 +6,7 @@ rust-version = "1.99"
 publish = false
 
 [dependencies]
+tokio = { version = "=1.53.2", features = ["rt", "net", "io-util", "sync", "time", "macros"] }
+
+[dev-dependencies]
+tokio = { version = "=1.53.2", features = ["test-util"] }

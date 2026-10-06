@@ -2,9 +2,9 @@
 
 ## Current state and purpose
 
-solidify is a planned cross-platform MUD client using Rust and Tauri, targeting Windows, Linux, and macOS. The implemented core is a dependency-free Rust Telnet decoding/encoding library with configurable Q-method negotiation in `src-tauri/`, with a Cargo manifest, lockfile, unit tests, and in-memory integration tests. There is no launchable application, transport, option-specific behavior, Tauri initialization, frontend, or automation yet.
+solidify is a planned cross-platform MUD client using Rust and Tauri, targeting Windows, Linux, and macOS. The implemented core in `src-tauri/` provides Telnet decoding/encoding, configurable Q-method negotiation, and bounded TCP sessions using pinned Tokio 1.53.2 on a caller-owned runtime. Protocol modules remain independent of Tokio. Unit, in-memory peer, and loopback TCP tests exist. There is no launchable application, option-specific behavior, Tauri initialization, frontend, or automation yet.
 
-Treat capabilities labeled planned in the design documents as requirements or proposals, not working features. Rust 1.99 is the library baseline; the frontend framework, Tauri/dependency versions, plugin engines, and external API contracts are not selected. The library's Rust interfaces are internal project contracts. Do not infer implementation from directory names.
+Treat capabilities labeled planned in the design documents as requirements or proposals, not working features. Rust 1.99 is the library baseline; the frontend framework, Tauri version, plugin engines, and external API contracts are not selected. The library's Rust interfaces are internal project contracts. Do not infer implementation from directory names.
 
 ## Instruction scope
 
@@ -40,7 +40,7 @@ Keep shared engineering rules here and directory-specific rules close to their f
 
 ## Verification and completion
 
-For Markdown changes, inspect relative links, headings, instruction consistency, whitespace, and the complete diff including untracked files. Do not install an application toolchain just to validate documentation or the dependency-free parser.
+For Markdown changes, inspect relative links, headings, instruction consistency, whitespace, and the complete diff including untracked files. Do not install an application toolchain just to validate documentation or the library.
 
 Use the [configured Cargo commands](docs/development/setup.md#library-commands): focused behavioral tests first, followed by formatting, lint, library build, and documentation checks. Do not invent frontend/package scripts or report hypothetical commands as executed. See the [testing strategy](docs/development/testing.md).
 

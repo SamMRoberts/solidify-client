@@ -2,7 +2,7 @@
 
 ## Current state
 
-Executable unit tests for Telnet decoding, encoding, and Q-method negotiation, plus in-memory public-API wire integration tests, are configured through the `src-tauri/` Cargo package. There are no transport integration tests, frontend tests, application acceptance tests, fuzz targets, or CI runners yet. The broader verification strategy below remains a requirement for future features, not completed application testing.
+Executable unit tests for Telnet decoding, encoding, and Q-method negotiation, plus deterministic session I/O tests, in-memory public-API wire tests, and TCP loopback tests, are configured through the `src-tauri/` Cargo package. There are no frontend tests, application acceptance tests, fuzz targets, or CI runners yet. The broader verification strategy below remains a requirement for future features, not completed application testing.
 
 ## Implemented parser checks
 
@@ -18,7 +18,15 @@ Colocated encoder tests check exact wire bytes, all-byte escaping, every command
 
 `src-tauri/tests/telnet_wire.rs` connects two synthetic peers through the public encoder → decoder → negotiator APIs. Tests cover mutual acceptance, asymmetric refusal, simultaneous complementary requests, queued reversals/cancellation, and delivery of other events to the caller. Message queues are capped at 32 entries and each settling phase at 64 exchanges; tests assert exact exchange counts, final states, and quiescence. No server or private transcript is involved.
 
-Local automated verification is on macOS with Rust/Cargo 1.99.0. Windows/Linux execution, native Tauri acceptance, fuzzing, and live-server compatibility remain unverified. These tests establish generic wire behavior, not option-specific implementations, transport, text decoding, or rendering.
+Local automated verification is on macOS with Rust/Cargo 1.99.0. Windows/Linux execution, native Tauri acceptance, fuzzing, and live-server compatibility remain unverified. Protocol tests establish generic wire behavior; session tests add deterministic I/O and local TCP evidence. Neither establishes option-specific implementations, text decoding, rendering, or public-server compatibility.
+
+## Implemented session checks
+
+`src-tauri/src/sessions/tests.rs` uses private generic I/O adapters for one-byte writes, stalled partial writes, write-zero and I/O failures, and worker failure. Tokio's controlled clock verifies connection and whole-frame write deadlines without unreliable external endpoints. Queue tests fill the command, writer, and event paths, verify read suspension, recover without loss/reordering, and interrupt pressure with disconnect, consumer drop, or writer failure. Resource probes and retained task handles verify that awaited shutdown releases I/O and joins workers, including after unexpected coordinator exit.
+
+`src-tauri/tests/tcp_sessions.rs` uses ephemeral IPv4 loopback listeners and the public API. It covers connection success/refusal, fragmented controls, partial prompts, raw bytes and IAC escaping, exact send limits, ordered negotiation refusals, clean EOF and every incomplete decoder state, malformed/oversized framing, multiple sessions, replacement identities, and owner/consumer drop. Server sockets are driven by test-owned futures, with no detached server tasks; every wait is bounded and unwinding releases sockets/listeners. Any future spawned test server must be explicitly stopped and joined on success and failure.
+
+The original 41 protocol tests remain intact. Loopback TCP evidence and deterministic adapter/clock evidence are separate from native application and public-server acceptance. Current execution is macOS only. See the [session contracts](../architecture/sessions.md) for queue sizes and the [setup commands](setup.md#library-commands) for dependency fetching and focused checks.
 
 ## Verification layers
 
@@ -26,7 +34,7 @@ Local automated verification is on macOS with Rust/Cargo 1.99.0. Windows/Linux e
 |---|---|---|
 | Markdown review | Entire scaffold | Valid links, coherent instructions, accurate status, focused changes |
 | Protocol and domain unit tests | Telnet decoder, encoder, and negotiator tests colocated with their modules | Observable bytes/events and state transitions for deterministic inputs |
-| Backend integration | `src-tauri/tests/` | In-memory Telnet wire core implemented; future commands, sessions, plugins, and storage integration remain planned |
+| Backend integration | `src-tauri/tests/` | In-memory Telnet wire core and loopback TCP sessions implemented; commands, plugins, and storage remain planned |
 | Frontend checks | Alongside future frontend implementation | Rendering, interaction, accessibility, and bridge behavior |
 | Application acceptance | `tests/e2e/` | Complete workflows using disposable data and local services |
 | Parser fuzzing | `fuzz/fuzz_targets/` | Bounded runs, reproducible failures, and regression inputs |

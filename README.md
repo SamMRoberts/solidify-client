@@ -4,7 +4,7 @@ solidify is a planned cross-platform MUD client built around Rust and Tauri for 
 
 ## Project status
 
-The implemented core is a dependency-free Rust library for bounded Telnet decoding and encoding, plus configurable RFC 1143 Q-method negotiation. It has deterministic unit tests and in-memory peer integration tests. Negotiation defaults to denying every option; allowing an option does not implement its behavior. See the [implemented protocol contracts](docs/architecture/protocols.md).
+The implemented Rust library provides bounded Telnet decoding/encoding, configurable RFC 1143 Q-method negotiation, and TCP sessions on a caller-owned Tokio runtime. Sessions deny all options, preserve raw bytes, and bound queues and shutdown work. The wire core remains independent of Tokio; the crate now pins Tokio 1.53.2. See the [protocol contracts](docs/architecture/protocols.md) and [session API and limits](docs/architecture/sessions.md).
 
 There is no launchable application, Tauri initialization, frontend package, installer, or automated workflow yet. The broader client remains planned.
 
@@ -13,6 +13,7 @@ There is no launchable application, Tauri initialization, frontend package, inst
 With Rust/Cargo 1.99.0, run from the repository root:
 
 ```sh
+cargo fetch --manifest-path src-tauri/Cargo.toml --locked
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline
 ```
 
@@ -20,7 +21,7 @@ See [development setup](docs/development/setup.md) for library build, formatting
 
 ## Planned capabilities
 
-- Telnet transport and option-specific behavior, ANSI color handling, and MXP markup.
+- Option-specific Telnet behavior, DNS/TLS, ANSI color handling, and MXP markup.
 - GMCP, ATCP, and MSP extensions with session-scoped state and safe rendering.
 - An accessible terminal interface and persistent user settings.
 - A plugin system with proposed Rust dynamic-library, WebAssembly, Lua, and JavaScript options.
@@ -30,7 +31,7 @@ These are design intentions, not a claim of protocol compliance or available plu
 
 ## Repository layout
 
-The Rust library and its colocated protocol unit tests live under `src-tauri/`, the future Tauri backend directory. Public-API wire integration tests live under `src-tauri/tests/`. Frontend responsibilities are reserved under `src/`, application acceptance under `tests/`, parser fuzzing under `fuzz/`, and plugin examples under `examples/plugins/`. Those reserved areas contain guidance only.
+The Rust library and its colocated protocol and session unit tests live under `src-tauri/`, the future Tauri backend directory. Public-API wire and loopback TCP integration tests live under `src-tauri/tests/`. Frontend responsibilities are reserved under `src/`, application acceptance under `tests/`, parser fuzzing under `fuzz/`, and plugin examples under `examples/plugins/`. Those reserved areas contain guidance only.
 
 The remaining directories cover tooling (`scripts/`), GitHub collaboration (`.github/`), development environments (`.devcontainer/`), documentation, and reference resources. Their contents are Markdown only.
 

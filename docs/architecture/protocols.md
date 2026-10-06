@@ -2,7 +2,7 @@
 
 ## Status
 
-Byte-level Telnet decoding/encoding and configurable Q-method negotiation are implemented. Transport, option-specific behavior, text decoding, and extension interpretation remain planned. The references below establish wire syntax and negotiation behavior, not a claim of complete Telnet or MUD compatibility.
+Byte-level Telnet decoding/encoding and configurable Q-method negotiation are implemented. Bounded TCP transport is implemented separately in [sessions](sessions.md); option-specific behavior, text decoding, and extension interpretation remain planned. The references below establish wire syntax and negotiation behavior, not a claim of complete Telnet or MUD compatibility.
 
 ## Implemented Telnet framing
 
@@ -21,7 +21,7 @@ Framing follows the command structure in [RFC 854](https://www.rfc-editor.org/rf
 
 The local malformed-input policy is strict: stray `IAC SE`, any command other than `IAC` or `SE` after `IAC` inside a payload, and exceeding the decoded payload limit fail immediately. Incomplete payloads are discarded, the remaining input is not processed, and subsequent feed/finish calls return `DecoderFailed`. Previously delivered events remain valid. Errors contain categories/control metadata, never transcript payloads. `reset()` discards partial state and allows reuse after partial input, failure, or successful finish; it emits nothing.
 
-These are initial internal project APIs, not stable plugin contracts. NVT newline conversion, character decoding, option-specific behavior, command actions/TCP urgent handling, transport, ANSI/MXP, GMCP/ATCP/MSP, and rendering are not implemented. The decoder's strict rejection policy is a local choice, not a universal server recovery rule.
+These are initial internal project APIs, not stable plugin contracts. NVT newline conversion, character decoding, option-specific behavior, command actions/TCP urgent handling, ANSI/MXP, GMCP/ATCP/MSP, and rendering are not implemented. The decoder's strict rejection policy is a local choice, not a universal server recovery rule.
 
 ## Implemented outbound encoding
 
@@ -46,13 +46,13 @@ The state machine follows the symmetric Q method in [RFC 1143, section 7](https:
 
 `NegotiationCommand { verb, option }` converts to `TelnetEvent` using `Into`/`From`, then passes to `encode`. Construction and reset emit no startup negotiation. There are no reply queues, timers, retries, or automatic re-requests after refusals. Unexpected acknowledgments follow RFC 1143's recovery transitions, without logging transcripts or failing the decoder.
 
-Process received negotiation events in order and deliver returned commands in operation order alongside other outgoing events. Negotiator state advances when a command is returned, not on successful delivery. Dropping a command and continuing can desynchronize the peers: the future session owner must tear down/reset on output failure and manage bounded queues. Other decoded events remain the caller's responsibility; these modules do not activate subnegotiation handlers or execute commands.
+Process received negotiation events in order and deliver returned commands in operation order alongside other outgoing events. Negotiator state advances when a command is returned, not on successful delivery. Dropping a command and continuing can desynchronize the peers: the session owner must tear down/reset on output failure and manage bounded queues. The implemented TCP session layer provides these guarantees using default-deny policy. Other decoded events remain the caller's responsibility; these modules do not activate subnegotiation handlers or execute commands.
 
 ## Protocol roadmap
 
 | Protocol | Intended capability | Reference |
 |---|---|---|
-| Telnet | Decoding, encoding, and generic negotiation implemented; transport and option-specific behavior planned | [RFC 854](https://www.rfc-editor.org/rfc/rfc854), [RFC 855](https://www.rfc-editor.org/rfc/rfc855), [RFC 1143](https://www.rfc-editor.org/rfc/rfc1143) |
+| Telnet | Decoding, encoding, generic negotiation, and separate TCP sessions implemented; option-specific behavior planned | [RFC 854](https://www.rfc-editor.org/rfc/rfc854), [RFC 855](https://www.rfc-editor.org/rfc/rfc855), [RFC 1143](https://www.rfc-editor.org/rfc/rfc1143) |
 | ANSI controls | Text styling and a deliberately supported control subset | [ECMA-48](https://ecma-international.org/publications-and-standards/standards/ecma-48/) |
 | MXP | Supported markup converted into safe client display/actions | [Zugg Software MXP specification](https://www.zuggsoft.com/zmud/mxp.htm) |
 | GMCP | Negotiated structured messages and documented package handling | [Aardwolf GMCP documentation](https://www.aardwolf.com/wiki/index.php/Clients/GMCP), a server-specific reference |
