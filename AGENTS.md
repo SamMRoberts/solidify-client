@@ -2,7 +2,7 @@
 
 ## Current state and purpose
 
-solidify is a planned cross-platform MUD client using Rust and Tauri, targeting Windows, Linux, and macOS. The implemented core in `src-tauri/` provides Telnet decoding/encoding, configurable Q-method negotiation, and bounded TCP sessions using pinned Tokio 1.53.2 on a caller-owned runtime. Protocol modules remain independent of Tokio. Unit, in-memory peer, and loopback TCP tests exist. There is no launchable application, option-specific behavior, Tauri initialization, frontend, or automation yet.
+solidify is a planned cross-platform MUD client using Rust and Tauri, targeting Windows, Linux, and macOS. The implemented core in `src-tauri/` provides Telnet decoding/encoding, configurable Q-method negotiation, bounded TCP sessions using pinned Tokio 1.53.2 on a caller-owned runtime, and independent bounded UTF-8/basic ANSI presentation decoding. Protocol modules remain independent of Tokio. Unit, in-memory peer, and loopback TCP tests exist. There is no launchable application, terminal renderer, option-specific behavior, Tauri initialization, frontend, or automation yet.
 
 Treat capabilities labeled planned in the design documents as requirements or proposals, not working features. Rust 1.99 is the library baseline; the frontend framework, Tauri version, plugin engines, and external API contracts are not selected. The library's Rust interfaces are internal project contracts. Do not infer implementation from directory names.
 

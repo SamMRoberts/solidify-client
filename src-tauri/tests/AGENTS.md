@@ -2,7 +2,7 @@
 
 ## Scope
 
-Own tests spanning backend subsystem boundaries. These instructions supplement ancestor `AGENTS.md` files for this subtree. `telnet_wire.rs` exercises the public encoder, decoder, and negotiator APIs between in-memory peers; `tcp_sessions.rs` exercises real TCP sessions using ephemeral loopback listeners. Other subsystem integration remains planned.
+Own tests spanning backend subsystem boundaries. These instructions supplement ancestor `AGENTS.md` files for this subtree. `telnet_wire.rs` exercises the public encoder, decoder, and negotiator APIs between in-memory peers; `tcp_sessions.rs` exercises real TCP sessions and caller-composed presentation decoding using ephemeral loopback listeners. Other subsystem integration remains planned.
 
 ## Working guidance
 

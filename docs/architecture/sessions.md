@@ -4,7 +4,7 @@
 
 `solidify_client::sessions` connects the existing [Telnet wire core](protocols.md) to TCP using pinned [Tokio 1.53.2](https://docs.rs/tokio/1.53.2/tokio/). It is a library on the caller's runtime, which must have I/O and timers enabled and remain running through cleanup. No runtime or global session manager is created internally. Rust interfaces are initial internal contracts, not stable plugin APIs.
 
-Only numeric `SocketAddr` endpoints are accepted. There is no DNS, TLS, reconnect, retry/replay, idle timeout, half-open operation, text/ANSI decoding, option handler, persistence, CLI, Tauri initialization, or frontend. Local tests do not establish public MUD compatibility or Windows/Linux runtime acceptance.
+Only numeric `SocketAddr` endpoints are accepted. The session itself performs no text/ANSI decoding; callers may compose it with the independent [presentation decoder](protocols.md#presentation-decoder-contract). There is no DNS, TLS, reconnect, retry/replay, idle timeout, half-open operation, option handler, persistence, CLI, Tauri initialization, or frontend. Local tests do not establish public MUD compatibility or Windows/Linux runtime acceptance.
 
 ## Public API
 

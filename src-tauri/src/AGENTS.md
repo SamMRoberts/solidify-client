@@ -2,7 +2,7 @@
 
 ## Scope
 
-Own backend composition across commands, sessions, protocols, plugins, and storage. These instructions supplement ancestor `AGENTS.md` files for this subtree. The library entrypoint, Telnet decoding/encoding/negotiation under `protocols/`, and bounded Tokio TCP sessions under `sessions/` are implemented; other subsystems remain guidance only.
+Own backend composition across commands, sessions, protocols, plugins, and storage. These instructions supplement ancestor `AGENTS.md` files for this subtree. The library entrypoint, Telnet decoding/encoding/negotiation and UTF-8/basic ANSI presentation decoding under `protocols/`, and bounded Tokio TCP sessions under `sessions/` are implemented; other subsystems remain guidance only.
 
 ## Working guidance
 

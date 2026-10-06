@@ -2,12 +2,12 @@
 
 ## Current status
 
-solidify currently provides Telnet decoding/encoding, configurable Q-method negotiation, and bounded Tokio TCP sessions, with unit, in-memory peer, and loopback integration tests. The desktop client remains planned: no runnable application, option-specific behavior, plugin API, CI workflow, or published documentation site exists. Directory guides distinguish the implemented core from reserved subsystems.
+solidify currently provides Telnet decoding/encoding, configurable Q-method negotiation, bounded Tokio TCP sessions, and independent UTF-8/basic ANSI presentation decoding, with unit, in-memory peer, and loopback integration tests. The desktop client remains planned: no runnable application, terminal renderer, option-specific behavior, plugin API, CI workflow, or published documentation site exists. Directory guides distinguish the implemented core from reserved subsystems.
 
 ## Architecture and extensions
 
 - [Architecture overview](architecture/overview.md): boundaries, ownership, and intended data flow.
-- [Protocol requirements](architecture/protocols.md): implemented decoding, encoding, and negotiation contracts; planned coverage and acceptance criteria.
+- [Protocol requirements](architecture/protocols.md): implemented Telnet and presentation decoding, encoding, and negotiation contracts; planned coverage and acceptance criteria.
 - [TCP sessions](architecture/sessions.md): public API, ownership, queue bounds, cancellation, and shutdown contracts.
 - [Plugin design](plugins/design.md): extension points, runtime alternatives, isolation, and lifecycle.
 - [Plugin example guide](../examples/plugins/README.md): proposed runtime directories and future validation.

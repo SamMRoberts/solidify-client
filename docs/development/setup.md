@@ -2,7 +2,7 @@
 
 ## What works today
 
-The single Cargo package in `src-tauri/` builds a Rust library for Telnet decoding, encoding, Q-method negotiation, and bounded TCP sessions. It runs deterministic unit tests, in-memory peer tests, and ephemeral loopback TCP tests. Its manifest and lockfile are tracked. No launchable Rust/Tauri application, frontend package, development container, or CI workflow exists.
+The single Cargo package in `src-tauri/` builds a Rust library for Telnet decoding, encoding, Q-method negotiation, bounded TCP sessions, and independent UTF-8/basic ANSI presentation decoding. It runs deterministic unit tests, in-memory peer tests, and ephemeral loopback TCP tests. Its manifest and lockfile are tracked. No launchable Rust/Tauri application, frontend package, development container, or CI workflow exists.
 
 The library uses Rust edition 2024 and declares Rust 1.99 as its minimum baseline. The initial local verification toolchain is Rust/Cargo 1.99.0 on macOS, with rustfmt and Clippy installed. No Rust toolchain manager configuration is added; use that toolchain for reproducible checks. Windows and Linux execution remain unverified.
 
@@ -22,6 +22,10 @@ cargo test --manifest-path src-tauri/Cargo.toml --locked --offline protocols::te
 # Focused outbound encoding and negotiation checks.
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline protocols::telnet::encoder
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline protocols::telnet::negotiation
+
+# Bounded UTF-8/basic ANSI presentation and session-to-presentation checks.
+cargo test --manifest-path src-tauri/Cargo.toml --locked --offline protocols::presentation
+cargo test --manifest-path src-tauri/Cargo.toml --locked --offline --test tcp_sessions presentation
 
 # Public-API in-memory peer integration tests.
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline --test telnet_wire

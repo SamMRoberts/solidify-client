@@ -4,7 +4,7 @@ solidify is a planned cross-platform MUD client built around Rust and Tauri for 
 
 ## Project status
 
-The implemented Rust library provides bounded Telnet decoding/encoding, configurable RFC 1143 Q-method negotiation, and TCP sessions on a caller-owned Tokio runtime. Sessions deny all options, preserve raw bytes, and bound queues and shutdown work. The wire core remains independent of Tokio; the crate now pins Tokio 1.53.2. See the [protocol contracts](docs/architecture/protocols.md) and [session API and limits](docs/architecture/sessions.md).
+The implemented Rust library provides bounded Telnet decoding/encoding, configurable RFC 1143 Q-method negotiation, TCP sessions on a caller-owned Tokio runtime, and independent streaming UTF-8/basic ANSI presentation decoding. Sessions deny all options, preserve raw bytes, and bound queues and shutdown work. Callers feed only Telnet data into presentation decoding for text, style, and control events. Protocol processing remains independent of Tokio; the crate pins Tokio 1.53.2. See the [protocol contracts](docs/architecture/protocols.md) and [session API and limits](docs/architecture/sessions.md).
 
 There is no launchable application, Tauri initialization, frontend package, installer, or automated workflow yet. The broader client remains planned.
 
@@ -21,7 +21,7 @@ See [development setup](docs/development/setup.md) for library build, formatting
 
 ## Planned capabilities
 
-- Option-specific Telnet behavior, DNS/TLS, ANSI color handling, and MXP markup.
+- Option-specific Telnet behavior, DNS/TLS, extended ANSI styling, terminal rendering, and MXP markup.
 - GMCP, ATCP, and MSP extensions with session-scoped state and safe rendering.
 - An accessible terminal interface and persistent user settings.
 - A plugin system with proposed Rust dynamic-library, WebAssembly, Lua, and JavaScript options.

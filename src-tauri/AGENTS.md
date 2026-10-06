@@ -2,7 +2,7 @@
 
 ## Scope
 
-Own the native application boundary, platform integration, and backend test package. These instructions supplement ancestor `AGENTS.md` files for this subtree. The directory currently contains a Rust library for Telnet decoding, encoding, Q-method negotiation, and bounded TCP sessions using pinned Tokio 1.53.2. Unit, in-memory peer, and loopback tests exist; Tauri is not initialized.
+Own the native application boundary, platform integration, and backend test package. These instructions supplement ancestor `AGENTS.md` files for this subtree. The directory currently contains a Rust library for Telnet decoding, encoding, Q-method negotiation, bounded TCP sessions using pinned Tokio 1.53.2, and independent UTF-8/basic ANSI presentation decoding. Unit, in-memory peer, and loopback tests exist; Tauri is not initialized.
 
 ## Working guidance
 

@@ -2,7 +2,7 @@
 
 ## Current state
 
-Executable unit tests for Telnet decoding, encoding, and Q-method negotiation, plus deterministic session I/O tests, in-memory public-API wire tests, and TCP loopback tests, are configured through the `src-tauri/` Cargo package. There are no frontend tests, application acceptance tests, fuzz targets, or CI runners yet. The broader verification strategy below remains a requirement for future features, not completed application testing.
+Executable unit tests for Telnet decoding, encoding, Q-method negotiation, and UTF-8/basic ANSI presentation decoding, plus deterministic session I/O tests, in-memory public-API wire tests, and TCP loopback tests, are configured through the `src-tauri/` Cargo package. There are no frontend tests, application acceptance tests, fuzz targets, or CI runners yet. The broader verification strategy below remains a requirement for future features, not completed application testing.
 
 ## Implemented parser checks
 
@@ -18,7 +18,29 @@ Colocated encoder tests check exact wire bytes, all-byte escaping, every command
 
 `src-tauri/tests/telnet_wire.rs` connects two synthetic peers through the public encoder → decoder → negotiator APIs. Tests cover mutual acceptance, asymmetric refusal, simultaneous complementary requests, queued reversals/cancellation, and delivery of other events to the caller. Message queues are capped at 32 entries and each settling phase at 64 exchanges; tests assert exact exchange counts, final states, and quiescence. No server or private transcript is involved.
 
-Local automated verification is on macOS with Rust/Cargo 1.99.0. Windows/Linux execution, native Tauri acceptance, fuzzing, and live-server compatibility remain unverified. Protocol tests establish generic wire behavior; session tests add deterministic I/O and local TCP evidence. Neither establishes option-specific implementations, text decoding, rendering, or public-server compatibility.
+Local automated verification is on macOS with Rust/Cargo 1.99.0. Windows/Linux execution, native Tauri acceptance, fuzzing, and live-server compatibility remain unverified. Protocol tests establish generic wire behavior; session tests add deterministic I/O and local TCP evidence. Separate presentation tests establish the documented text/style decoding subset. These checks do not establish option-specific implementations, rendering, or public-server compatibility.
+
+## Implemented presentation checks
+
+Colocated `presentation/tests.rs` tests compare whole-stream, every two-part
+split, bytewise input, and exhaustive partitions of short streams after merging
+adjacent text events. Unicode cases include invalid leads, overlong/surrogate/
+out-of-range encodings, interrupted and truncated prefixes, and an exhaustive
+two-byte ordinary-input comparison with Rust's lossy UTF-8 conversion (excluding
+the documented discarded controls).
+
+Style tests cover all basic colors and resets, independent flags, atomic mixed
+SGR rejection, empty fields, leading zeroes, and redundant transitions. Other
+tests cover unsupported ESC/CSI, all five discarded string kinds, opaque payloads,
+both OSC terminators, exact bounds/overflow, embedded controls, scalar boundaries,
+replacement expansion, lifecycle, and independent instances. Large-stream checks
+use counting callbacks without retaining output.
+
+The added `tcp_sessions.rs` presentation tests explicitly compose session data
+with the public decoder. They verify partial prompts before newline/EOF, fragmented
+Unicode and SGR across separately handled Telnet events, caller-owned EOF/failure
+handling, and independent concurrent sessions. They retain bounded waits and
+verify session/socket cleanup. All 66 pre-presentation tests remain intact.
 
 ## Implemented session checks
 

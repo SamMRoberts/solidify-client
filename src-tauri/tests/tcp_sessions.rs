@@ -1,6 +1,10 @@
 //! Local servers run as test-owned futures/sockets, never detached tasks. Every
 //! wait is bounded; unwinding drops listeners and sockets and cancels sessions.
 use solidify_client::{
+    protocols::presentation::{
+        IncompleteSequence, MAX_CONTROL_STRING_BYTES, MAX_TEXT_BYTES, PresentationDecoder,
+        PresentationError, PresentationEvent, TextColor, TextControl, TextStyle,
+    },
     protocols::telnet::{DecodeError, IncompleteFrame, NegotiationVerb, TelnetEvent},
     sessions::{
         CloseReason, ConnectError, MAX_SEND_BYTES, SendError, Session, SessionConfig,
@@ -54,6 +58,267 @@ async fn event(events: &mut SessionEvents, id: u64, expected: TelnetEvent) {
 
 async fn eof(server: &mut TcpStream) {
     assert_eq!(bounded(server.read(&mut [0])).await.unwrap(), 0);
+}
+
+fn collect_presentation(events: &mut Vec<PresentationEvent>, event: PresentationEvent) {
+    if let PresentationEvent::Text(text) = &event {
+        assert!(!text.is_empty() && text.len() <= MAX_TEXT_BYTES);
+        if let Some(PresentationEvent::Text(previous)) = events.last_mut() {
+            previous.push_str(text);
+            return;
+        }
+    }
+    events.push(event);
+}
+
+#[tokio::test]
+async fn presentation_streams_prompts_unicode_and_styles_across_telnet_controls() {
+    let (mut session, mut events, mut server) = pair(40).await;
+    let mut decoder = PresentationDecoder::new();
+    let mut output = Vec::new();
+    let mut controls = Vec::new();
+    for (index, fragment) in [
+        b"Name: \xf0\x9f".as_slice(),
+        b"\xff\xfb\x2a\x8c\x8d \x1b[3",
+        b"\xff\xfa\x63private\xff\xf0\xff\xfd\x2b1m> ",
+        b"\r\n\x1b[0m",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        bounded(server.write_all(fragment)).await.unwrap();
+        // A Telnet NOP provides an observed boundary without assuming TCP packetization.
+        bounded(server.write_all(&[255, 241])).await.unwrap();
+        bounded(async {
+            loop {
+                let received = events.recv().await.unwrap();
+                assert_eq!(received.id, SessionId(40));
+                match received.event {
+                    TelnetEvent::Data(data) => decoder
+                        .feed(&data, |e| collect_presentation(&mut output, e))
+                        .unwrap(),
+                    TelnetEvent::Command(241) => break,
+                    other => controls.push(other),
+                }
+            }
+        })
+        .await;
+        if index == 0 {
+            assert_eq!(output, [PresentationEvent::Text("Name: ".into())]);
+            assert_eq!(session.status().state, SessionState::Connected);
+        }
+    }
+    assert_eq!(
+        output,
+        [
+            PresentationEvent::Text("Name: 🌍 ".into()),
+            PresentationEvent::StyleChanged(TextStyle {
+                foreground: TextColor::Red,
+                ..TextStyle::default()
+            }),
+            PresentationEvent::Text("> ".into()),
+            PresentationEvent::Control(TextControl::CarriageReturn),
+            PresentationEvent::Control(TextControl::LineFeed),
+            PresentationEvent::StyleChanged(TextStyle::default()),
+        ]
+    );
+    assert_eq!(
+        controls,
+        [
+            TelnetEvent::Negotiation {
+                verb: NegotiationVerb::Will,
+                option: 42
+            },
+            TelnetEvent::Subnegotiation {
+                option: 99,
+                payload: b"private".to_vec()
+            },
+            TelnetEvent::Negotiation {
+                verb: NegotiationVerb::Do,
+                option: 43
+            },
+        ]
+    );
+    bytes(&mut server, &[255, 254, 42, 255, 252, 43]).await;
+    bounded(server.shutdown()).await.unwrap();
+    assert!(bounded(events.recv()).await.is_none());
+    decoder
+        .finish(|_| panic!("unexpected finish output"))
+        .unwrap();
+    assert_eq!(
+        bounded(session.closed()).await.state,
+        SessionState::Closed(CloseReason::PeerEof)
+    );
+    eof(&mut server).await;
+}
+
+#[tokio::test]
+async fn presentation_finish_handles_unicode_and_escape_eof_separately_from_session_eof() {
+    for (input, expected_text, expected_error) in [
+        (b"prompt \xe2\x82".as_slice(), "prompt �", None),
+        (b"prompt \x1b", "prompt ", Some(IncompleteSequence::Escape)),
+        (b"prompt \x1b[31", "prompt ", Some(IncompleteSequence::Csi)),
+        (
+            b"prompt \x1b]private",
+            "prompt ",
+            Some(IncompleteSequence::ControlString),
+        ),
+        (
+            b"prompt \x1bPprivate\x1b",
+            "prompt ",
+            Some(IncompleteSequence::ControlStringTerminator),
+        ),
+    ] {
+        let (mut session, mut events, mut server) = pair(41).await;
+        let mut decoder = PresentationDecoder::new();
+        let mut output = Vec::new();
+        bounded(server.write_all(input)).await.unwrap();
+        bounded(server.shutdown()).await.unwrap();
+        bounded(async {
+            while let Some(received) = events.recv().await {
+                let TelnetEvent::Data(data) = received.event else {
+                    panic!("unexpected Telnet control");
+                };
+                decoder
+                    .feed(&data, |e| collect_presentation(&mut output, e))
+                    .unwrap();
+            }
+        })
+        .await;
+        assert_eq!(
+            decoder.finish(|e| collect_presentation(&mut output, e)),
+            expected_error.map_or(Ok(()), |sequence| Err(PresentationError::Truncated {
+                sequence
+            }))
+        );
+        assert_eq!(output, [PresentationEvent::Text(expected_text.into())]);
+        assert_eq!(
+            bounded(session.closed()).await.state,
+            SessionState::Closed(CloseReason::PeerEof)
+        );
+        eof(&mut server).await;
+    }
+}
+
+#[tokio::test]
+async fn presentation_failure_does_not_implicitly_close_transport() {
+    let (mut session, mut events, mut server) = pair(42).await;
+    let mut decoder = PresentationDecoder::new();
+    let mut input = b"before\x1b]".to_vec();
+    input.extend(vec![b'x'; MAX_CONTROL_STRING_BYTES]);
+    input.extend(b"\x07after");
+    bounded(server.write_all(&input)).await.unwrap();
+    let mut output = Vec::new();
+    let failure = bounded(async {
+        loop {
+            let received = events.recv().await.unwrap();
+            let TelnetEvent::Data(data) = received.event else {
+                panic!("unexpected Telnet control");
+            };
+            if let Err(error) = decoder.feed(&data, |e| collect_presentation(&mut output, e)) {
+                break error;
+            }
+        }
+    })
+    .await;
+    assert_eq!(failure, PresentationError::ControlStringTooLong);
+    assert_eq!(output, [PresentationEvent::Text("before".into())]);
+    assert_eq!(session.status().state, SessionState::Connected);
+    session.try_send_data(b"still connected").unwrap();
+    bytes(&mut server, b"still connected").await;
+    assert_eq!(
+        decoder.feed(b"late", |_| panic!("failed decoder emitted")),
+        Err(PresentationError::DecoderFailed)
+    );
+    assert_eq!(
+        bounded(session.disconnect()).await.state,
+        SessionState::Closed(CloseReason::Disconnected)
+    );
+    eof(&mut server).await;
+    bounded(async { while events.recv().await.is_some() {} }).await;
+}
+
+#[tokio::test]
+async fn presentation_instances_remain_isolated_across_concurrent_sessions() {
+    let (mut first, mut first_events, mut first_server) = pair(43).await;
+    let (mut second, mut second_events, mut second_server) = pair(44).await;
+    let mut first_decoder = PresentationDecoder::new();
+    let mut second_decoder = PresentationDecoder::new();
+    let mut first_output = Vec::new();
+    let mut second_output = Vec::new();
+    bounded(first_server.write_all(b"\x1b[1m\xc3\xff\xf1"))
+        .await
+        .unwrap();
+    bounded(async {
+        loop {
+            let received = first_events.recv().await.unwrap();
+            assert_eq!(received.id, SessionId(43));
+            match received.event {
+                TelnetEvent::Data(data) => first_decoder
+                    .feed(&data, |e| collect_presentation(&mut first_output, e))
+                    .unwrap(),
+                TelnetEvent::Command(241) => break,
+                _ => panic!("unexpected Telnet event"),
+            }
+        }
+    })
+    .await;
+    bounded(second_server.write_all(b"\x1b[mplain"))
+        .await
+        .unwrap();
+    bounded(second_server.shutdown()).await.unwrap();
+    bounded(async {
+        while let Some(received) = second_events.recv().await {
+            assert_eq!(received.id, SessionId(44));
+            let TelnetEvent::Data(data) = received.event else {
+                panic!("unexpected Telnet control");
+            };
+            second_decoder
+                .feed(&data, |e| collect_presentation(&mut second_output, e))
+                .unwrap();
+        }
+    })
+    .await;
+    second_decoder
+        .finish(|_| panic!("unexpected finish output"))
+        .unwrap();
+    bounded(first_server.write_all(b"\xa9")).await.unwrap();
+    bounded(first_server.shutdown()).await.unwrap();
+    bounded(async {
+        while let Some(received) = first_events.recv().await {
+            let TelnetEvent::Data(data) = received.event else {
+                panic!("unexpected Telnet control");
+            };
+            first_decoder
+                .feed(&data, |e| collect_presentation(&mut first_output, e))
+                .unwrap();
+        }
+    })
+    .await;
+    first_decoder
+        .finish(|_| panic!("unexpected finish output"))
+        .unwrap();
+    assert_eq!(
+        first_output,
+        [
+            PresentationEvent::StyleChanged(TextStyle {
+                bold: true,
+                ..TextStyle::default()
+            }),
+            PresentationEvent::Text("é".into())
+        ]
+    );
+    assert_eq!(second_output, [PresentationEvent::Text("plain".into())]);
+    for (session, server) in [
+        (&mut first, &mut first_server),
+        (&mut second, &mut second_server),
+    ] {
+        assert_eq!(
+            bounded(session.closed()).await.state,
+            SessionState::Closed(CloseReason::PeerEof)
+        );
+        eof(server).await;
+    }
 }
 
 #[tokio::test]
