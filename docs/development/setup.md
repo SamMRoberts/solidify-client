@@ -286,3 +286,16 @@ directory after closing its instances; never include it or its screenshots in Gi
 Browser tests with a mocked bridge do not establish these native persistence,
 locking, transport, or cleanup behaviors. Report Windows/Linux and public-server
 acceptance separately.
+
+## Extended-color checklist
+
+Use the disposable native setup above and connect to the loopback demo. Send
+`colors` for bright foreground samples, all 256 background indices, fragmented
+RGB orange text and blue background, indexed inverse, and an explicit reset.
+Send `styles` to compare original colors and bold. Change profile defaults in
+Appearance: defaults change while explicit colors remain fixed; Cancel restores
+appearance. Clear output, send `colors` again, disconnect and reconnect. Confirm
+clean prompts and unchanged masking/resize behavior. Close the window and confirm
+process/socket cleanup. No capability negotiation or terminal identity change is
+required; the demo's `help` lists `colors`. Never use public servers as implicit
+acceptance. Browser fixture checks are separate from this real native TCP path.

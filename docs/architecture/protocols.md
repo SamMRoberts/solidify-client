@@ -2,7 +2,7 @@
 
 ## Status
 
-Byte-level Telnet decoding/encoding, configurable Q-method negotiation, and independent bounded UTF-8/basic ANSI presentation decoding are implemented. Bounded TCP transport is implemented separately in [sessions](sessions.md); a separate [desktop layer](desktop.md) renders basic styled text and line controls. Passive TTYPE/NAWS, remote ECHO, and SGA behavior is implemented in the separate option handler below; other extensions remain planned. The references below establish wire syntax and negotiation behavior, not a claim of complete Telnet or MUD compatibility.
+Byte-level Telnet decoding/encoding, configurable Q-method negotiation, and independent bounded UTF-8/ANSI presentation decoding are implemented. Bounded TCP transport is implemented separately in [sessions](sessions.md); a separate [desktop layer](desktop.md) renders basic styled text and line controls. Passive TTYPE/NAWS, remote ECHO, and SGA behavior is implemented in the separate option handler below; other extensions remain planned. The references below establish wire syntax and negotiation behavior, not a claim of complete Telnet or MUD compatibility.
 
 ## Implemented Telnet framing
 
@@ -53,14 +53,29 @@ different adjacent text-event boundaries only. CR, LF, tab, backspace, and bell
 are distinct control events, without execution or newline conversion. Other
 ground-state C0 controls and DEL are discarded.
 
-`TextStyle` contains typed default/eight-color foreground and background values
-and boolean bold, italic, underline, and inverse flags. Support SGR 0, 1/22,
-3/23, 4/24, 7/27, 30–37/39, and 40–47/49. Empty fields mean zero; apply fields
-left to right and commit atomically at the final byte. Emit a full style snapshot
-only when the effective style changes. Bold does not imply bright colors.
-Any unsupported parameter makes the entire SGR a no-op, including bright and
-extended colors, colon subparameters, and private/intermediate forms. Large
-decimal values are unsupported without arithmetic overflow.
+`TextStyle` contains typed default/basic, indexed, and RGB foreground/background
+values and boolean bold, italic, underline, and inverse flags. Support SGR 0,
+1/22, 3/23, 4/24, 7/27, 30–37/39, 40–47/49, bright 90–97/100–107, and the
+[xterm indexed/direct color forms](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html):
+
+- Indexed: `38;5;n` / `48;5;n` and `38:5:n` / `48:5:n`.
+- RGB: `38;2;r;g;b`, `38:2:r:g:b`, `38:2::r:g:b`, or `38:2:0:r:g:b`,
+  with corresponding `48` background forms. Explicit color-space slots accept
+  only empty or zero; other color spaces and additional subparameters are unsupported.
+
+Color operands must be nonempty decimal integers from 0 through 255. Indices 0–7
+canonicalize to existing basic variants; bright codes canonicalize to indices 8–15.
+`TextColor::Indexed(u8)` and `TextColor::Rgb { red, green, blue }` are additive
+internal enum variants; exhaustive consumers must handle them. Bold never implies
+bright color. Ordinary empty top-level fields mean reset. Apply complete groups
+left to right and commit atomically, emitting one snapshot only when style changes.
+
+Any unsupported parameter, private/intermediate form, incomplete color group,
+empty/out-of-range operand, unsupported mode, or mixed separators inside a group
+makes the entire SGR a no-op. Rejected operands never become independent flags or
+resets. Large decimal values are rejected without overflow. All operands count
+toward the existing 16 semicolon-field limit; colon groups occupy one field and
+remain subject to the 128-byte sequence limit. No output queue is introduced.
 
 ### Escape syntax and limits
 
@@ -99,7 +114,7 @@ input, returns `DecoderFinished`. `reset()` silently discards partial state and
 restores default style, including after finish/failure; consumers resetting a
 decoder must also reset their own tracked style. Construction/reset emit nothing.
 
-Legacy encodings, charset negotiation, bright/extended colors, cursor movement,
+Legacy encodings, charset negotiation, cursor movement,
 screen editing, hyperlinks, clipboard actions, rendering, and terminal emulation
 remain deferred. Unsupported controls never execute actions.
 
@@ -133,7 +148,7 @@ Process received negotiation events in order and deliver returned commands in op
 | Protocol | Intended capability | Reference |
 |---|---|---|
 | Telnet | Decoding, encoding, generic negotiation, and separate TCP sessions implemented; TTYPE/NAWS/ECHO/SGA implemented in an opt-in profile | [RFC 854](https://www.rfc-editor.org/rfc/rfc854), [RFC 855](https://www.rfc-editor.org/rfc/rfc855), [RFC 1143](https://www.rfc-editor.org/rfc/rfc1143) |
-| UTF-8 and ANSI controls | Bounded text decoding, basic SGR, and nonexecuting control events implemented; basic desktop rendering implemented separately; other styles deferred | [RFC 3629](https://www.rfc-editor.org/rfc/rfc3629), [ECMA-48](https://ecma-international.org/publications-and-standards/standards/ecma-48/) |
+| UTF-8 and ANSI controls | Bounded text decoding, basic flags plus bright/indexed/RGB SGR, and nonexecuting control events implemented; basic desktop rendering implemented separately; other styles deferred | [RFC 3629](https://www.rfc-editor.org/rfc/rfc3629), [ECMA-48](https://ecma-international.org/publications-and-standards/standards/ecma-48/) |
 | MXP | Supported markup converted into safe client display/actions | [Zugg Software MXP specification](https://www.zuggsoft.com/zmud/mxp.htm) |
 | GMCP | Negotiated structured messages and documented package handling | [Aardwolf GMCP documentation](https://www.aardwolf.com/wiki/index.php/Clients/GMCP), a server-specific reference |
 | ATCP | Negotiated structured extension messages | [Iron Realms ATCP reference](https://www.ironrealms.com/rapture/manual/files/FeatATCP-txt.html) |

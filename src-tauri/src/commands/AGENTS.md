@@ -10,6 +10,8 @@ Own the validated entrypoints called through the frontend bridge. These instruct
 - Delegate transport, parsing, plugin, and storage work to their owning subsystems.
 - Expose only task-specific capabilities and return bounded, non-sensitive errors.
 
+Map indexed/RGB colors to dedicated numeric DTOs while retaining existing named strings.
+
 ## Verification
 
 Exercise malformed inputs, missing or stale sessions, denied operations, and normal success paths through the command boundary.

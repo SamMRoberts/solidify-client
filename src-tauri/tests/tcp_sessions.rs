@@ -597,3 +597,68 @@ async fn opt_in_options_preserve_default_sessions_and_fragmented_presentation() 
     eof(&mut peer).await;
     eof(&mut original_peer).await;
 }
+
+#[tokio::test]
+async fn extended_colors_survive_fragmentation_and_interleaved_negotiation() {
+    let (mut session, mut events, mut server) = pair(80).await;
+    let mut decoder = PresentationDecoder::new();
+    let mut output = Vec::new();
+    for fragment in [
+        b"\x1b[38;2;25".as_slice(),
+        b"\xff\xfb\x2a5;128;0mRGB \x1b[48:5:",
+        b"255mindexed\x1b[0m> ",
+    ] {
+        bounded(server.write_all(fragment)).await.unwrap();
+        bounded(server.write_all(&[255, 241])).await.unwrap();
+        bounded(async {
+            loop {
+                match events.recv().await.unwrap().event {
+                    TelnetEvent::Data(data) => decoder
+                        .feed(&data, |e| collect_presentation(&mut output, e))
+                        .unwrap(),
+                    TelnetEvent::Command(241) => break,
+                    TelnetEvent::Negotiation { .. } => {}
+                    _ => panic!("unexpected event"),
+                }
+            }
+        })
+        .await;
+    }
+    assert_eq!(
+        output,
+        [
+            PresentationEvent::StyleChanged(TextStyle {
+                foreground: TextColor::Rgb {
+                    red: 255,
+                    green: 128,
+                    blue: 0
+                },
+                ..TextStyle::default()
+            }),
+            PresentationEvent::Text("RGB ".into()),
+            PresentationEvent::StyleChanged(TextStyle {
+                foreground: TextColor::Rgb {
+                    red: 255,
+                    green: 128,
+                    blue: 0
+                },
+                background: TextColor::Indexed(255),
+                ..TextStyle::default()
+            }),
+            PresentationEvent::Text("indexed".into()),
+            PresentationEvent::StyleChanged(TextStyle::default()),
+            PresentationEvent::Text("> ".into()),
+        ]
+    );
+    bytes(&mut server, &[255, 254, 42]).await;
+    bounded(server.shutdown()).await.unwrap();
+    assert!(bounded(events.recv()).await.is_none());
+    decoder
+        .finish(|_| panic!("unexpected finish output"))
+        .unwrap();
+    assert_eq!(
+        bounded(session.closed()).await.state,
+        SessionState::Closed(CloseReason::PeerEof)
+    );
+    eof(&mut server).await;
+}

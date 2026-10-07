@@ -16,7 +16,7 @@ fn coalesce(events: Vec<PresentationEvent>) -> Vec<PresentationEvent> {
     normalized
 }
 
-fn decode(chunks: &[&[u8]]) -> (Vec<PresentationEvent>, Result<(), PresentationError>) {
+pub(super) fn decode(chunks: &[&[u8]]) -> (Vec<PresentationEvent>, Result<(), PresentationError>) {
     let mut decoder = PresentationDecoder::new();
     let mut events = Vec::new();
     for chunk in chunks {
@@ -28,7 +28,7 @@ fn decode(chunks: &[&[u8]]) -> (Vec<PresentationEvent>, Result<(), PresentationE
     (coalesce(events), result)
 }
 
-fn invariant(input: &[u8]) -> (Vec<PresentationEvent>, Result<(), PresentationError>) {
+pub(super) fn invariant(input: &[u8]) -> (Vec<PresentationEvent>, Result<(), PresentationError>) {
     let expected = decode(&[input]);
     for split in 0..=input.len() {
         assert_eq!(
@@ -41,7 +41,7 @@ fn invariant(input: &[u8]) -> (Vec<PresentationEvent>, Result<(), PresentationEr
     expected
 }
 
-fn text(value: &str) -> PresentationEvent {
+pub(super) fn text(value: &str) -> PresentationEvent {
     PresentationEvent::Text(value.to_owned())
 }
 
@@ -284,10 +284,10 @@ fn full_reset_empty_fields_leading_zeroes_and_redundant_styles() {
 fn unsupported_sgr_is_atomic_including_extended_color_operands() {
     for parameters in [
         "31;2;1",
-        "0;38;2;1;3;4",
-        "48;5;1;0",
-        "31;91",
-        "31;101",
+        "0;38;2;256;3;4",
+        "48;5;256;0",
+        "31;98",
+        "31;108",
         "31;99999999999999999999999",
         "31:1",
         "?31",

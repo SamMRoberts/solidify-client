@@ -2,7 +2,7 @@
 
 ## Current state
 
-Executable unit tests for Telnet decoding, encoding, Q-method negotiation, and UTF-8/basic ANSI presentation decoding, plus deterministic session I/O tests, in-memory public-API wire tests, and TCP loopback tests, are configured through the `src-tauri/` Cargo package. The application coordinator has injected-DNS and loopback tests; the React frontend has Vitest/jsdom tests. Browser and native macOS acceptance use the loopback demo. There is no automated native driver suite, fuzz target, or CI runner; broader future-feature scenarios below remain requirements rather than passing evidence.
+Executable unit tests for Telnet decoding, encoding, Q-method negotiation, and UTF-8/ANSI presentation decoding, plus deterministic session I/O tests, in-memory public-API wire tests, and TCP loopback tests, are configured through the `src-tauri/` Cargo package. The application coordinator has injected-DNS and loopback tests; the React frontend has Vitest/jsdom tests. Browser and native macOS acceptance use the loopback demo. There is no automated native driver suite, fuzz target, or CI runner; broader future-feature scenarios below remain requirements rather than passing evidence.
 
 ## Implemented parser checks
 
@@ -193,6 +193,43 @@ synthetic text, one active client, bounded input, and loopback TCP.
   remain unverified. Lock contention and corrupt-file recovery have automated
   storage coverage and a manual checklist. Only synthetic local data was used;
   the test app, development server and demo were stopped after verification.
+
+## Eighth-slice verification (2026-10-06)
+
+- **Automated Rust:** locked/offline ordinary suite **122 passed** (105 unit,
+  13 TCP, 4 wire); `profiles` **133 passed**; `desktop` **136 passed**, including
+  three command-boundary tests. Both demo-example tests passed. Existing tests
+  remain; unsupported-color fixtures now use values outside the expanded subset.
+  New coverage includes all indexed values, RGB boundaries and syntax variants,
+  splits/bytewise/exhaustive short partitions, atomic rejection, exact limits,
+  typed IPC, real fragmented TCP with negotiation, and real demo/application output.
+- **Automated frontend:** **45 tests passed**. Numeric style equality, fixed palette,
+  RGB and inverse, profile defaults, hostile values/markup, clear and retention
+  limits are covered. TypeScript, Prettier, Vite build, Cargo formatting, all-target
+  warnings-denied Clippy, builds and API docs passed for ordinary, profiles and
+  desktop feature configurations. The production Tauri macOS app build passed.
+- **Browser:** installed Playwright Chromium at `http://localhost:1420`, using a
+  temporary test-only IPC fixture, passed 1100×760 and 720×480 checks. The Browser
+  plugin was unavailable; sandboxed Chromium could not register its Mach port, so
+  the approved unsandboxed run was used. Page identity, meaningful content, absence
+  of a framework overlay, console health, screenshots, RGB/indexed inverse colors,
+  profile preview/Cancel, clear and fresh-ID reconnect passed. The fixture was
+  corrected to match real connection IDs, control names and bounded poll batches;
+  no production bridge mocks were added. These are browser rendering checks, not
+  transport evidence.
+- **Native macOS:** a separately identified production `.app` used a fresh `/tmp`
+  configuration directory and the real loopback demo on port 4001. `colors`
+  displayed the 256 swatches, bright samples, fragmented RGB orange/blue background,
+  inverse and reset. Changing default text/background preserved explicit colors.
+  Clear followed by fresh color output and disconnect/reconnect passed. File →
+  Close Window exited the native process, removed the TCP connection, and released
+  the disposable profile lock. No real user profiles or public MUDs were used.
+- **Review and limits:** relative Markdown links/headings, whitespace, instruction
+  consistency and the complete diff including new files were reviewed. No new
+  dependencies, profile schema, capabilities, transport APIs or terminal identity
+  were introduced. `TextColor` gains indexed/RGB variants, requiring exhaustive
+  internal consumers to handle them. Windows/Linux runtime and public-server
+  compatibility remain unverified; full terminal emulation is outside this slice.
 
 ## Verification layers
 

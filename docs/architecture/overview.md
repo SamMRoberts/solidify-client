@@ -2,7 +2,7 @@
 
 ## Status and direction
 
-This is the intended organization for a Rust/Tauri MUD client. The Rust Telnet wire core, bounded Tokio TCP session library, and independent UTF-8/basic ANSI presentation decoder are implemented in the single `src-tauri/` package. The feature-gated Tauri 2 application and React/TypeScript frontend now implement a single-connection desktop slice. Target platforms remain Windows, Linux, and macOS; native acceptance must be reported per OS. Named saved connections and appearance are implemented; other persistence and external plugin APIs remain deferred. Internal IPC DTOs are documented in the [desktop contracts](desktop.md).
+This is the intended organization for a Rust/Tauri MUD client. The Rust Telnet wire core, bounded Tokio TCP session library, and independent UTF-8/ANSI presentation decoder are implemented in the single `src-tauri/` package. The feature-gated Tauri 2 application and React/TypeScript frontend now implement a single-connection desktop slice. Target platforms remain Windows, Linux, and macOS; native acceptance must be reported per OS. Named saved connections and appearance are implemented; other persistence and external plugin APIs remain deferred. Internal IPC DTOs are documented in the [desktop contracts](desktop.md).
 
 ## Implemented data flow
 
@@ -32,13 +32,13 @@ transcript renderer above these unchanged library APIs.
 | Backend commands | Validated application entrypoints with narrow capabilities |
 | Application coordinator | Implemented hostname resolution, connection IDs, decoder composition, bounded polling, command acceptance, and supervised cleanup |
 | Sessions | Implemented numeric TCP connections, task ownership, default-deny and opt-in MUD negotiation, bounded queues, and teardown |
-| Protocols | Telnet decoding, encoding, generic negotiation, and UTF-8/basic ANSI presentation decoding implemented independently of UI/networking; TTYPE/NAWS/ECHO/SGA are implemented; other extensions remain planned |
+| Protocols | Telnet decoding, encoding, generic negotiation, and UTF-8/ANSI presentation decoding implemented independently of UI/networking; TTYPE/NAWS/ECHO/SGA are implemented; other extensions remain planned |
 | Plugins | Compatibility, capabilities, callbacks, isolation, and lifecycle |
 | Storage | Implemented bounded saved connections and appearance; other settings and plugin namespaces remain planned |
 
 ## Application data flow
 
-User input passes from the terminal through the frontend bridge to validated backend commands. The session owns transport and outbound ordering. Incoming bytes pass through Telnet framing and the supported option profile; only data enters UTF-8/basic ANSI decoding. The frontend polls bounded structured output and renders literal text with typed style classes. Other option extensions and markup interpretation remain deferred.
+User input passes from the terminal through the frontend bridge to validated backend commands. The session owns transport and outbound ordering. Incoming bytes pass through Telnet framing and the supported option profile; only data enters UTF-8/ANSI decoding. The frontend polls bounded structured output and renders literal text with typed style classes. Other option extensions and markup interpretation remain deferred.
 
 This is conceptual ordering, not a mandated parser API: Telnet subnegotiations and embedded display extensions need different handling. The implementation must retain stream order and partial sequence state.
 

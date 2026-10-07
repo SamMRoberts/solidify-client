@@ -26,7 +26,7 @@ async fn main() -> io::Result<()> {
     let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)).await?;
     println!("solidify demo listening on {}", listener.local_addr()?);
     println!(
-        "One client at a time. Commands: help, styles, unicode, controls, markup, burst, protocol, mask, options-off, options-on, malformed, quit."
+        "One client at a time. Commands: help, styles, colors, unicode, controls, markup, burst, protocol, mask, options-off, options-on, malformed, quit."
     );
     loop {
         let (mut socket, _) = listener.accept().await?;
@@ -195,7 +195,7 @@ async fn serve(socket: &mut TcpStream) -> io::Result<()> {
                 }
                 let command = String::from_utf8_lossy(&input);
                 let response: &[u8] = match command.as_ref() {
-                    "help" => b"\r\nCommands: styles, unicode, controls, markup, burst, protocol, mask, options-off, options-on, malformed, quit.\r\n",
+                    "help" => b"\r\nCommands: styles, colors, unicode, controls, markup, burst, protocol, mask, options-off, options-on, malformed, quit.\r\n",
                     "protocol" => {
                         let identity = if options.identified { "SOLIDIFY" } else { "unavailable" };
                         let dimensions = options.size.map(|s| format!("{} columns x {} rows", s.columns, s.rows)).unwrap_or_else(|| "unavailable".into());
@@ -212,6 +212,17 @@ async fn serve(socket: &mut TcpStream) -> io::Result<()> {
                     "options-off" => { options.toggle(socket, false).await?; b"\r\nOptions disabled.\r\n" }
                     "options-on" => { options.toggle(socket, true).await?; b"\r\nOptions requested. Use protocol to inspect.\r\n" }
                     "styles" => b"\r\n\x1b[31mRed \x1b[32mGreen \x1b[34mBlue\x1b[0m\r\n\x1b[1mBold\x1b[22m \x1b[3mItalic\x1b[23m \x1b[4mUnderline\x1b[24m \x1b[7mInverse\x1b[27m\r\n",
+                    "colors" => {
+                        write(socket, b"\r\nBright: \x1b[91mred \x1b[94mblue\x1b[0m\r\nIndexed palette:\r\n").await?;
+                        for index in 0..256 {
+                            write(socket, format!("\x1b[48;5;{index}m  \x1b[0m").as_bytes()).await?;
+                            if index % 32 == 31 { write(socket, b"\r\n").await?; }
+                        }
+                        // Split inside an RGB operand to exercise streaming framing.
+                        write(socket, b"RGB: \x1b[38;2;255;1").await?;
+                        write(socket, b"28;0morange \x1b[48:2::20:60:100mbackground\x1b[0m\r\n\x1b[38:5:201;7mInverse magenta\x1b[0m Default restored.\r\n").await?;
+                        b""
+                    }
                     "unicode" => "\r\ncafé · 中文 · 🌍 · e\u{301}\r\n".as_bytes(),
                     "controls" => b"\r\nprogress 10%\rprogress 100%\r\nBackspacex\x08!\r\nA\tB\x07\r\n",
                     "markup" => b"\r\n<script>alert('literal text')</script>\r\n<a href='https://example.invalid'>not a link</a>\r\n",
@@ -318,5 +329,73 @@ mod tests {
         })
         .await
         .expect("demo test deadline");
+    }
+    #[tokio::test]
+    async fn demo_extended_colors_use_real_application_path() {
+        use solidify_client::protocols::presentation::TextColor;
+        tokio::time::timeout(Duration::from_secs(8), async {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let app = Application::new();
+            let id = app
+                .start(
+                    "127.0.0.1",
+                    u32::from(listener.local_addr().unwrap().port()),
+                )
+                .unwrap();
+            let server = async {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                serve(&mut socket).await.unwrap();
+                socket.shutdown().await.unwrap();
+            };
+            let client = async {
+                prompt(&app, id).await;
+                app.send_line(id, "colors").await.unwrap();
+                let mut text = String::new();
+                let mut styles = Vec::new();
+                while !text.contains("demo> ") {
+                    let poll = app.poll(id).await.unwrap();
+                    assert!(!poll.finished);
+                    for event in poll.events {
+                        match event {
+                            PresentationEvent::Text(part) => text.push_str(&part),
+                            PresentationEvent::StyleChanged(style) => styles.push(style),
+                            _ => {}
+                        }
+                    }
+                    assert!(text.len() < 4096 && styles.len() < 1024);
+                }
+                assert!(text.contains("orange background") && text.contains("Default restored."));
+                assert!(styles.iter().any(|s| s.foreground
+                    == TextColor::Rgb {
+                        red: 255,
+                        green: 128,
+                        blue: 0
+                    }));
+                assert!(styles.iter().any(|s| s.background
+                    == TextColor::Rgb {
+                        red: 20,
+                        green: 60,
+                        blue: 100
+                    }));
+                for index in 8..=255 {
+                    assert!(
+                        styles
+                            .iter()
+                            .any(|s| s.background == TextColor::Indexed(index))
+                    );
+                }
+                assert!(
+                    styles
+                        .iter()
+                        .any(|s| s.inverse && s.foreground == TextColor::Indexed(201))
+                );
+                app.send_line(id, "quit").await.unwrap();
+                while !app.poll(id).await.unwrap().finished {}
+                app.shutdown().await;
+            };
+            tokio::join!(server, client);
+        })
+        .await
+        .expect("demo colors deadline");
     }
 }

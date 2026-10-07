@@ -1,3 +1,4 @@
+import { colorKey } from "./colors";
 import type { Output, Style } from "../bridge/client";
 export const MAX_LINES = 2000,
   MAX_BYTES = 1024 * 1024,
@@ -25,9 +26,14 @@ const encoder = new TextEncoder();
 const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 const size = (value: string) => encoder.encode(value).length;
 const key = (s: Style) =>
-  [s.foreground, s.background, s.bold, s.italic, s.underline, s.inverse].join(
-    ":",
-  );
+  [
+    colorKey(s.foreground),
+    colorKey(s.background),
+    s.bold,
+    s.italic,
+    s.underline,
+    s.inverse,
+  ].join(":");
 
 /** Bounded transcript semantics, deliberately not a terminal cell grid. */
 export class TranscriptModel {

@@ -10,6 +10,8 @@ Own the frontend boundary for native commands and event subscriptions. These ins
 - Carry session identity through asynchronous work and prevent stale responses from updating a replacement session.
 - Map expected failures to useful UI states without leaking credentials. Backend validation remains authoritative.
 
+Color DTOs preserve named strings and use tagged numeric records for indexed/RGB colors; never carry arbitrary CSS.
+
 ## Verification
 
 Verify rejected payloads, cancellation or stale responses, disconnects, and repeated subscribe/unsubscribe cycles using the configured frontend tests and separate native acceptance.

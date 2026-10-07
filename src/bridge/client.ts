@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-export type Color =
+export type NamedColor =
   | "default"
   | "black"
   | "red"
@@ -9,6 +9,10 @@ export type Color =
   | "magenta"
   | "cyan"
   | "white";
+export type Color =
+  | NamedColor
+  | { kind: "indexed"; index: number }
+  | { kind: "rgb"; red: number; green: number; blue: number };
 export interface Style {
   foreground: Color;
   background: Color;

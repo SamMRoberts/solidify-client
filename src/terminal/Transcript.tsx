@@ -1,23 +1,14 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { defaultAppearance, type Appearance } from "../bridge/profiles";
+import { colorPresentation } from "./colors";
 import { observeViewport } from "./viewport";
 import type { ViewportSize, Style } from "../bridge/client";
 import type { TranscriptModel } from "./model";
 
 function classes(style: Style) {
-  const foreground = style.inverse
-    ? style.background === "default"
-      ? "base"
-      : style.background
-    : style.foreground;
-  const background = style.inverse
-    ? style.foreground === "default"
-      ? "ink"
-      : style.foreground
-    : style.background;
   return [
-    `fg-${foreground}`,
-    `bg-${background}`,
+    colorPresentation(style.foreground, style.background, style.inverse)
+      .className,
     style.bold ? "bold" : "",
     style.italic ? "italic" : "",
     style.underline ? "underline" : "",
@@ -132,7 +123,17 @@ export function Transcript({
           <div className="line" key={line.id} data-line={line.id}>
             {line.runs.length ? (
               line.runs.map((run, index) => (
-                <span key={index} className={classes(run.style)}>
+                <span
+                  key={index}
+                  className={classes(run.style)}
+                  style={
+                    colorPresentation(
+                      run.style.foreground,
+                      run.style.background,
+                      run.style.inverse,
+                    ).style
+                  }
+                >
                   {run.text}
                 </span>
               ))

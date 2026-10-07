@@ -157,10 +157,38 @@ Window/application shutdown also awaits accepted storage operations. See the
 [canonical storage contracts](storage.md) for schema, bounds, failure recovery and
 exact UI commit/rollback behavior.
 
+## Explicit ANSI colors
+
+Named color DTO strings remain unchanged. Extended colors use numeric records:
+`{kind: "indexed", index}` or `{kind: "rgb", red, green, blue}`. Components are
+integers in 0–255; the renderer validates them before generating CSS and accepts
+no arbitrary CSS from the server. Style coalescing compares component values.
+Inverse swaps typed foreground/background, including profile-controlled defaults.
+Explicit palette/RGB colors are unaffected by profile appearance or bold.
+
+The fixed palette preserves the original first eight entries:
+
+| Index | Hex | Bright index | Hex |
+|---|---|---|---|
+| 0 | #111318 | 8 | #697586 |
+| 1 | #d66b72 | 9 | #ff8b92 |
+| 2 | #83bd8a | 10 | #a7e0af |
+| 3 | #d8bd78 | 11 | #ffe19a |
+| 4 | #7d9bd5 | 12 | #a4bdff |
+| 5 | #be8ecc | 13 | #e0b1ef |
+| 6 | #7ec5cb | 14 | #a5edf2 |
+| 7 | #e6e8eb | 15 | #ffffff |
+
+Indices 16–231 use a 6×6×6 cube: subtract 16 and select red, green, blue
+from levels 0, 95, 135, 175, 215, 255 using quotient/remainder in base six.
+Indices 232–255 use equal channels `8 + 10 × (index - 232)`. This fixed palette
+is a rendering policy, not terminal emulation or an editable palette. OSC palette
+mutation, color queries, and MTTS capability advertisement remain unsupported.
+
 ## Deferred work
 
 Multiple sessions, credentials, TLS, other option handlers,
-other persistence, plugins, extended colors, cursor addressing, screen editing,
+other persistence, plugins, cursor addressing, screen editing,
 terminal emulation, installers, signing, and CI remain deferred. The local demo
 and macOS checks do not establish Windows/Linux or public-MUD compatibility.
 See [setup and manual checks](../development/setup.md#manual-desktop-checklist).

@@ -6,8 +6,10 @@
 //! recovery policy; this is not a terminal emulator or an encoding negotiator.
 //!
 //! UTF-8 validity follows [RFC 3629](https://www.rfc-editor.org/rfc/rfc3629).
-//! ESC/CSI syntax and supported SGR values follow
+//! ESC/CSI syntax follows
 //! [ECMA-48](https://ecma-international.org/publications-and-standards/standards/ecma-48/).
+//! Bright/indexed/RGB SGR follows the supported subset of the
+//! [xterm reference](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html).
 //! Invalid UTF-8 uses Rust's lossy replacement grouping. Only seven-bit ESC
 //! forms are recognized; unsupported C0/DEL and decoded C1 controls are dropped.
 //! Any unsupported SGR field makes that complete SGR a no-op. OSC/DCS/SOS/PM/APC
@@ -15,6 +17,7 @@
 //! limit. Malformed syntax, excess limits, and truncation latch failure.
 
 use std::fmt;
+mod sgr;
 
 /// Maximum UTF-8 bytes in one text event, including replacement characters.
 pub const MAX_TEXT_BYTES: usize = 4096;
@@ -27,7 +30,7 @@ pub const MAX_SGR_PARAMETERS: usize = 16;
 /// Maximum discarded control-string bytes, including both delimiters.
 pub const MAX_CONTROL_STRING_BYTES: usize = 4096;
 
-/// A semantic color; palette/RGB selection belongs to the future renderer.
+/// Semantic default/basic colors, a fixed 256-color index, or explicit RGB.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum TextColor {
     #[default]
@@ -40,6 +43,12 @@ pub enum TextColor {
     Magenta,
     Cyan,
     White,
+    Indexed(u8),
+    Rgb {
+        red: u8,
+        green: u8,
+        blue: u8,
+    },
 }
 
 /// Full effective style. Bold does not imply a bright palette color.
@@ -334,36 +343,12 @@ impl PresentationDecoder {
         if parameters.iter().filter(|&&byte| byte == b';').count() + 1 > MAX_SGR_PARAMETERS {
             return Err(PresentationError::TooManySgrParameters);
         }
-        if intermediate
-            || parameters
-                .iter()
-                .any(|byte| !byte.is_ascii_digit() && *byte != b';')
-        {
+        if intermediate {
             return Ok(());
         }
-        let mut next = self.style;
-        for field in parameters.split(|&byte| byte == b';') {
-            // Values above the supported range are unknown, not integer errors.
-            let value = field.iter().fold(0_u16, |value, byte| {
-                (value * 10 + u16::from(byte - b'0')).min(100)
-            });
-            match value {
-                0 => next = TextStyle::default(),
-                1 => next.bold = true,
-                3 => next.italic = true,
-                4 => next.underline = true,
-                7 => next.inverse = true,
-                22 => next.bold = false,
-                23 => next.italic = false,
-                24 => next.underline = false,
-                27 => next.inverse = false,
-                30..=37 => next.foreground = basic_color(value - 30),
-                39 => next.foreground = TextColor::Default,
-                40..=47 => next.background = basic_color(value - 40),
-                49 => next.background = TextColor::Default,
-                _ => return Ok(()),
-            }
-        }
+        let Some(next) = sgr::apply(self.style, parameters) else {
+            return Ok(());
+        };
         if next != self.style {
             flush_text(text, emit);
             self.style = next;
@@ -459,3 +444,6 @@ fn flush_text(text: &mut String, emit: &mut impl FnMut(PresentationEvent)) {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod color_tests;

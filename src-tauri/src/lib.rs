@@ -2,9 +2,10 @@
 //!
 //! This library provides byte-level Telnet decoding/encoding and configurable
 //! Q-method option negotiation, bounded Tokio TCP sessions, and independent
-//! UTF-8/basic ANSI presentation decoding, plus a bounded single-connection
+//! UTF-8/ANSI presentation decoding, plus a bounded single-connection
 //! application coordinator. The optional desktop binary initializes Tauri and
 //! hosts the React transcript renderer; protocol APIs remain UI-independent.
+//! Presentation styles include basic flags, bright/indexed colors, and direct RGB.
 //! An opt-in profile implements passive TTYPE/NAWS, remote ECHO and SGA.
 //! The optional `profiles` feature adds bounded saved connections and transcript
 //! appearance with strict validation, exclusive locking and atomic replacement.

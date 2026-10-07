@@ -57,8 +57,8 @@ enum Event {
 }
 #[derive(Serialize)]
 struct Style {
-    foreground: &'static str,
-    background: &'static str,
+    foreground: Color,
+    background: Color,
     bold: bool,
     italic: bool,
     underline: bool,
@@ -76,8 +76,20 @@ impl From<TextStyle> for Style {
         }
     }
 }
-fn color(color: TextColor) -> &'static str {
-    match color {
+#[derive(Serialize)]
+#[serde(untagged)]
+enum Color {
+    Named(&'static str),
+    Extended(ExtendedColor),
+}
+#[derive(Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+enum ExtendedColor {
+    Indexed { index: u8 },
+    Rgb { red: u8, green: u8, blue: u8 },
+}
+fn color(color: TextColor) -> Color {
+    Color::Named(match color {
         TextColor::Default => "default",
         TextColor::Black => "black",
         TextColor::Red => "red",
@@ -87,7 +99,11 @@ fn color(color: TextColor) -> &'static str {
         TextColor::Magenta => "magenta",
         TextColor::Cyan => "cyan",
         TextColor::White => "white",
-    }
+        TextColor::Indexed(index) => return Color::Extended(ExtendedColor::Indexed { index }),
+        TextColor::Rgb { red, green, blue } => {
+            return Color::Extended(ExtendedColor::Rgb { red, green, blue });
+        }
+    })
 }
 fn control_name(control: TextControl) -> &'static str {
     match control {
@@ -190,6 +206,27 @@ pub async fn disconnect(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn colors_cross_ipc_as_named_strings_or_bounded_numeric_records() {
+        assert_eq!(
+            serde_json::to_value(color(TextColor::Default)).unwrap(),
+            "default"
+        );
+        assert_eq!(serde_json::to_value(color(TextColor::Red)).unwrap(), "red");
+        assert_eq!(
+            serde_json::to_value(color(TextColor::Indexed(255))).unwrap(),
+            serde_json::json!({"kind":"indexed","index":255})
+        );
+        assert_eq!(
+            serde_json::to_value(color(TextColor::Rgb {
+                red: 0,
+                green: 127,
+                blue: 255
+            }))
+            .unwrap(),
+            serde_json::json!({"kind":"rgb","red":0,"green":127,"blue":255})
+        );
+    }
     #[test]
     fn commands_require_main_window_and_application_origin() {
         for origin in ["tauri://localhost", "http://tauri.localhost"] {
