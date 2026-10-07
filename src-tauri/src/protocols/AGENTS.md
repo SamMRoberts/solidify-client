@@ -2,7 +2,7 @@
 
 ## Scope
 
-Own streaming Telnet, ANSI, MXP, GMCP, ATCP, and MSP interpretation as those protocols are implemented. These instructions supplement ancestor `AGENTS.md` files for this subtree. `telnet.rs` implements decoding; its `telnet/` modules add encoding and Q-method negotiation with colocated tests. `presentation.rs` implements bounded UTF-8/ANSI decoding with tests under `presentation/`. `options.rs` implements passive TTYPE/NAWS/ECHO/SGA using the existing negotiator; other extensions and rendering remain outside these modules.
+Own streaming Telnet, ANSI, MXP, GMCP, ATCP, and MSP interpretation as those protocols are implemented. These instructions supplement ancestor `AGENTS.md` files for this subtree. `telnet.rs` implements decoding; its `telnet/` modules add encoding and Q-method negotiation with colocated tests. `presentation.rs` implements bounded UTF-8/ANSI decoding with tests under `presentation/`. `options.rs` implements passive TTYPE/NAWS/ECHO/SGA using the existing negotiator; `gmcp.rs` implements bounded generic envelope decoding/encoding with colocated tests; `options.rs` permits GMCP only in the explicit GMCP session profile. Package semantics, desktop GMCP, other extensions and rendering remain deferred.
 
 Presentation supports basic flags plus bright, indexed 256-color and direct RGB SGR, preserving bounded atomic decoding.
 

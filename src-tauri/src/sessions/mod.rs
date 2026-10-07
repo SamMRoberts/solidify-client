@@ -6,12 +6,13 @@
 
 mod driver;
 
+use crate::protocols::gmcp::{self, GmcpError, GmcpMessage};
 pub use crate::protocols::options::{OptionSnapshot, SessionOptions, TerminalSize};
 use crate::protocols::telnet::{DecodeError, TelnetEvent};
 use std::{fmt, io, net::SocketAddr, time::Duration};
 use tokio::{
     net::TcpStream,
-    sync::{mpsc, watch},
+    sync::{mpsc, oneshot, watch},
     task::JoinHandle,
 };
 
@@ -59,6 +60,37 @@ pub enum SendError {
     TooLarge,
 }
 
+/// GMCP admission errors, without message contents. Success is queue acceptance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GmcpSendError {
+    Closed,
+    QueueFull,
+    Disabled,
+    StaleGeneration,
+    Invalid(GmcpError),
+}
+impl fmt::Display for GmcpSendError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Closed => f.write_str("session is closed"),
+            Self::QueueFull => f.write_str("session command queue is full"),
+            Self::Disabled => f.write_str("GMCP is not enabled"),
+            Self::StaleGeneration => f.write_str("GMCP negotiation changed before send acceptance"),
+            Self::Invalid(error) => write!(f, "{error}"),
+        }
+    }
+}
+impl std::error::Error for GmcpSendError {}
+
+enum SessionCommand {
+    Data(Vec<u8>),
+    Gmcp {
+        event: TelnetEvent,
+        generation: u64,
+        reply: oneshot::Sender<Result<(), GmcpSendError>>,
+    },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IoOperation {
     Read,
@@ -93,11 +125,14 @@ pub struct SessionStatus {
     pub state: SessionState,
 }
 
-/// A received event, including uninterpreted negotiation and subnegotiation data.
+/// A raw received event with optional negotiated GMCP interpretation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionEvent {
     pub id: SessionId,
     pub event: TelnetEvent,
+    /// Parsed at this event's position in the stream, only while GMCP is enabled.
+    /// The raw event is always retained, including rejected GMCP payloads.
+    pub gmcp: Option<Result<GmcpMessage, GmcpError>>,
 }
 
 impl fmt::Display for ConnectError {
@@ -159,7 +194,7 @@ pub async fn connect_with_options(
 
 /// Owning, non-cloneable session control. Dropping it signals asynchronous teardown.
 pub struct Session {
-    commands: mpsc::Sender<Vec<u8>>,
+    commands: mpsc::Sender<SessionCommand>,
     viewport: watch::Sender<TerminalSize>,
     options: watch::Receiver<OptionSnapshot>,
     stop: watch::Sender<Option<CloseReason>>,
@@ -211,8 +246,42 @@ impl Session {
             mpsc::error::TrySendError::Full(_) => SendError::QueueFull,
             mpsc::error::TrySendError::Closed(_) => SendError::Closed,
         })?;
-        permit.send(data.to_vec());
+        permit.send(SessionCommand::Data(data.to_vec()));
         Ok(())
+    }
+
+    /// Submits bounded GMCP using the same FIFO as data and option responses.
+    /// Success acknowledges writer-queue acceptance, not network delivery.
+    /// The coordinator rechecks enablement and generation before acceptance.
+    /// Cancelling this wait does not retract a command already submitted.
+    /// Negotiations not yet read cannot revoke previously accepted frames.
+    ///
+    /// # Errors
+    /// Reports closure, disabled GMCP, changed negotiation, a full command queue,
+    /// or codec validation errors. Generation exhaustion fails closed.
+    pub async fn send_gmcp(&self, message: &GmcpMessage) -> Result<(), GmcpSendError> {
+        if self.stop.borrow().is_some() || matches!(self.status().state, SessionState::Closed(_)) {
+            return Err(GmcpSendError::Closed);
+        }
+        let snapshot = *self.options.borrow();
+        if !snapshot.gmcp {
+            return Err(GmcpSendError::Disabled);
+        }
+        if snapshot.gmcp_generation == u64::MAX {
+            return Err(GmcpSendError::StaleGeneration);
+        }
+        let permit = self.commands.try_reserve().map_err(|error| match error {
+            mpsc::error::TrySendError::Full(_) => GmcpSendError::QueueFull,
+            mpsc::error::TrySendError::Closed(_) => GmcpSendError::Closed,
+        })?;
+        let event = gmcp::to_subnegotiation(message).map_err(GmcpSendError::Invalid)?;
+        let (reply, result) = oneshot::channel();
+        permit.send(SessionCommand::Gmcp {
+            event,
+            generation: snapshot.gmcp_generation,
+            reply,
+        });
+        result.await.unwrap_or(Err(GmcpSendError::Closed))
     }
 
     /// Snapshot independent of received-event queue capacity.

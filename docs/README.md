@@ -2,7 +2,7 @@
 
 ## Current status
 
-solidify currently provides Telnet decoding/encoding, configurable Q-method negotiation, bounded Tokio TCP sessions, and independent UTF-8/ANSI presentation decoding, with unit, in-memory peer, and loopback integration tests. A Tauri 2 + React/TypeScript desktop client adds one connection, hostname resolution, bounded styled transcripts, command entry, and a local demo. TTYPE/NAWS, remote ECHO masking, and SGA are implemented through an opt-in session profile used by the desktop. Named saved connections and per-profile appearance are implemented with bounded backend storage. Other option behavior, plugins, other persistence, installers, CI and a published documentation site remain deferred. Directory guides distinguish the implemented core from reserved subsystems.
+solidify currently provides Telnet decoding/encoding, configurable Q-method negotiation, bounded Tokio TCP sessions, and independent UTF-8/ANSI presentation decoding, with unit, in-memory peer, and loopback integration tests. A Tauri 2 + React/TypeScript desktop client adds one connection, hostname resolution, bounded styled transcripts, command entry, and a local demo. TTYPE/NAWS, remote ECHO masking, and SGA are implemented through an opt-in session profile used by the desktop. Named saved connections and per-profile appearance are implemented with bounded backend storage. A stateless GMCP codec and explicit connected-session profile are available; desktop GMCP and package handling remain deferred. Other option behavior, plugins, other persistence, installers, CI and a published documentation site remain deferred. Directory guides distinguish the implemented core from reserved subsystems.
 
 ## Architecture and extensions
 
@@ -32,3 +32,5 @@ solidify currently provides Telnet decoding/encoding, configurable Q-method nego
 The [resource index](../resources/README.md) links to primary references, fixture conventions, and asset provenance. Keep externally sourced evidence there and maintained project guidance here. All capability claims should be updated alongside implementation and its validation.
 
 The [eighth-slice contract and gates](development/eighth-slice.md) cover extended ANSI colors.
+The [connected-GMCP slice](development/connected-gmcp-slice.md) covers explicit TCP
+integration, bounded sends, negotiation generations and ordered interpretation.

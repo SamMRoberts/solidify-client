@@ -14,18 +14,19 @@ Only numeric `SocketAddr` endpoints are accepted. The session itself performs no
 | `SessionId(u64)` | Caller-assigned identity; never reuse for concurrent or replacement sessions. There is no registry enforcing uniqueness. |
 | `SessionConfig` | Positive `connect_timeout` and `write_timeout`, defaulting to 10 seconds and 5 seconds. Write timeout covers completing one frame, starting when the writer takes it, not time spent in queues. |
 | `Session::try_send_data(&[u8])` | Copies and accepts at most 16 KiB into the command queue. `Ok(())` acknowledges acceptance only, not socket delivery. Empty data is an open-session no-op. `SendError` reports closed, full, or oversized input without copying it. |
+| `Session::send_gmcp(&GmcpMessage).await` | Validates up to 64 KiB and acknowledges writer-queue acceptance after checking GMCP negotiation; see the GMCP profile below. No socket delivery guarantee. |
 | `Session::status()` | Snapshot of `SessionStatus { id, state }`; state is `Connected` or `Closed(CloseReason)`. Closure publication uses a separate watch channel, never the event queue. |
 | `Session::closed().await` | Waits for termination and joins both workers. Cancelling this wait preserves their handles for another wait. |
 | `Session::disconnect().await` | Signals cancellation and joins both workers. Idempotent; preserves an already-published terminal reason. Does not promise to flush accepted sends. |
-| `SessionEvents::recv().await` | Returns ordered `SessionEvent { id, event }` values, then `None` after closure and queue drain. Cancelling this receive does not consume an event. |
+| `SessionEvents::recv().await` | Returns ordered `SessionEvent { id, event, gmcp }` values, then `None` after closure and queue drain. `event` always preserves raw Telnet delivery; `gmcp` holds optional interpretation. Cancelling this receive does not consume an event. |
 
 Both public owners are non-cloneable. Dropping either signals cancellation; `Drop` cannot await cleanup. Keep the runtime running and await `closed()`/`disconnect()` on a retained session when a cleanup barrier is needed. Each connection gets fresh decoder, negotiator, and channels; old queued events keep their original identity after a replacement connection is created.
 
 ## Ordering and negotiation
 
-One coordinator owns the read half, decoder, option handler with one Q-method negotiator, and application command processing. A separate writer owns the write half. All application data and generated option responses enter the same FIFO writer queue in coordinator processing order. A command racing with a socket read has no priority guarantee; once processed, their resulting frames cannot interleave. A caller must not equate a `try_send_data` return with completed processing or delivery.
+One coordinator owns the read half, decoder, option handler with one Q-method negotiator, and application command processing. A separate writer owns the write half. All application data, GMCP sends and generated option responses enter the same FIFO writer queue in coordinator processing order. A command racing with a socket read has no priority guarantee; once processed, their resulting frames cannot interleave. A caller must not equate a `try_send_data` return with completed processing or delivery.
 
-For the unchanged default-deny API, incoming `WILL` generates `DONT`, and `DO` generates `WONT`, according to the existing Q method. Negative acknowledgments do not produce reply loops. Neither profile generates startup negotiation. `connect_with_options` offers the implemented MUD profile alongside default-deny. Negotiation and subnegotiation events are still forwarded, even for unsupported options, and all received data remains untrusted. A response is enqueued before its corresponding inbound event is delivered. Permitting an option in the standalone negotiator does not implement its semantics or change connected-session policy.
+For the unchanged default-deny API, incoming `WILL` generates `DONT`, and `DO` generates `WONT`, according to the existing Q method. Negative acknowledgments do not produce reply loops. No profile generates startup negotiation. `connect_with_options` offers terminal and GMCP profiles alongside default-deny. Negotiation and subnegotiation events are still forwarded, even for unsupported options, and all received data remains untrusted. A response is enqueued before its corresponding inbound event is delivered. Permitting an option in the standalone negotiator does not implement its semantics or change connected-session policy.
 
 Data uses the existing encoder, doubling IAC and preserving every other byte without newline normalization or automatic terminators. The writer tracks each frame's offset across short writes. Cancellation or failure after a partial write ends the connection; no frame is restarted. This follows [Tokio's cancellation guidance](https://docs.rs/tokio/1.53.2/tokio/macro.select.html#cancellation-safety).
 
@@ -34,14 +35,23 @@ Data uses the existing encoder, doubling IAC and preserving every other byte wit
 | Resource | Fixed bound |
 |---|---:|
 | Read scratch buffer | 4 KiB |
-| Application payload before escaping | 16 KiB |
+| Ordinary application payload before escaping | 16 KiB |
+| GMCP application payload before escaping | 64 KiB including package and separator |
 | Application command queue | 32 entries |
-| Encoded writer queue | 32 frames, each at most 32 KiB |
+| Encoded writer queue | 32 frames; ordinary data at most 32 KiB, GMCP conservatively at most 128 KiB + 5 bytes |
 | Received-event queue | 128 events |
 | Data event | 4 KiB |
 | Decoded subnegotiation payload | 64 KiB |
 
 The coordinator retains at most one read's decoded batch while delivering events. That batch can include a completed 64 KiB payload retained from earlier reads, alongside the current read's events. The decoder may also retain its own incomplete payload up to 64 KiB. Queue slots have allocator/type overhead; the table bounds content, not total process RSS. The received queue can therefore hold up to 128 payloads of 64 KiB, not merely 128 read buffers.
+
+With the GMCP profile, each enabled GMCP event additionally retains one parsed
+message derived from its raw payload (or a payload-free error). JSON allocation
+overhead is not a second 64 KiB memory cap: names, strings, maps, arrays and values
+have allocator/type overhead. Parsing retains the codec's 64-container depth
+limit and 64 KiB input bound. Only the current delivery event is interpreted
+outside the queue; no second batch of parsed messages is retained. The command
+queue shares its 32 slots across ordinary data and serialized GMCP payloads.
 
 In addition to the queues, one command/encoded frame can be in coordinator processing and one frame in the writer. Encoding uses the existing fixed 4 KiB scratch buffer. No unbounded pending list or output queue is introduced. User-retained events and OS socket buffers are outside these library queue limits.
 
@@ -64,7 +74,7 @@ shares the original connection and cleanup contracts. `connect` still chooses
 `DenyAll`; existing `SessionConfig` fields and raw event delivery are unchanged.
 
 `Session::subscribe_options()` returns a Tokio watch receiver of the fixed
-`OptionSnapshot`: TTYPE, NAWS, remote ECHO, local/remote SGA, and masking generation.
+`OptionSnapshot`: TTYPE, NAWS, remote ECHO, local/remote SGA, masking generation, and GMCP enablement/generation.
 The coordinator publishes changes before awaiting response/event queue capacity.
 A subscriber can therefore observe processed negotiations despite downstream
 pressure. Unread negotiations behind transport backpressure remain unread.
@@ -77,3 +87,51 @@ size when it resumes. Responses use the existing FIFO writer with the same write
 deadline and partial-write termination rules. One receive stages at most two
 responses (a three-byte acknowledgment and at most thirteen-byte NAWS frame);
 TTYPE frames are fourteen bytes. No new unbounded queues are introduced.
+
+## Opt-in GMCP profile
+
+`SessionOptions::MudClientGmcp { size }` adds passive remote GMCP (option 201) to
+the existing terminal options. The server's `WILL` receives `DO`; a server `DO`
+is refused with `WONT`. Remote enablement permits sends and receives in both
+directions, without enabling local GMCP. Duplicates do not generate reply loops.
+Neither the default-deny profile nor `MudClient` changes; the desktop still uses
+`MudClient`. No Core handshake, package subscription/state, or credential exchange
+is automatic.
+
+`OptionSnapshot` adds `gmcp: bool` and `gmcp_generation: u64`. Each transition to
+enabled increments the generation, including after copyover-style `WONT`/`WILL`.
+The counter saturates; outgoing sends fail closed at `u64::MAX` rather than reuse
+an exhausted generation. Snapshots publish before response/event backpressure,
+can coalesce transient states, and remain the last processed state after closure.
+Check session status as well; a replacement session starts disabled at zero.
+
+The coordinator populates `SessionEvent.gmcp: Option<Result<GmcpMessage, GmcpError>>`
+at that event's position in the wire stream. Enabled GMCP yields a parsed message
+or error alongside the original raw event. Disabled/premature GMCP and other
+Telnet events yield `None`. Invalid names, UTF-8, JSON or JSON depth reject only
+one GMCP message; fatal Telnet framing/size errors remain fatal. These are
+untrusted structured data, never frontend actions. Consumers process ordered
+negotiations to clear any state they own; a latest-state watch snapshot must not
+be used to reinterpret historical queued events.
+
+`send_gmcp` checks closure and current enablement, reserves a shared command slot
+without waiting for capacity, and serializes through the codec. Its payload is
+bounded before submission. The command captures the enable generation; the
+coordinator checks it again before enqueuing its frame to the existing FIFO
+writer. A processed disable rejects it as `Disabled`; disable/re-enable rejects
+it as `StaleGeneration`. `Closed`, `QueueFull`, and `Invalid(GmcpError)` are the
+other payload-free errors. No stale command is replayed into a new generation.
+
+Success means writer-queue admission, not delivery. It may await backpressure;
+there is no admission timeout. Cancellation or writer failure ends pending waits
+with `Closed`. Cancelling the caller's wait does not retract an already-submitted
+command. Frames admitted before a disable is processed can still be sent; a
+negotiation waiting unread behind backpressure cannot revoke them. Ordinary
+sends, negotiation replies and GMCP frames never interleave on the wire. Shared
+write deadlines, partial-write termination, cancellation and joined cleanup apply.
+
+The new option variant and struct fields extend internal Rust contracts: callers
+using exhaustive enum matches or struct literals must account for them. Existing
+frontend DTOs and saved-profile formats are unchanged. See the
+[slice gates](../development/connected-gmcp-slice.md) and
+[verification](../development/testing.md#connected-gmcp-verification-2026-10-06).

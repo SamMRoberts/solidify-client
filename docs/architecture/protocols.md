@@ -2,7 +2,7 @@
 
 ## Status
 
-Byte-level Telnet decoding/encoding, configurable Q-method negotiation, and independent bounded UTF-8/ANSI presentation decoding are implemented. Bounded TCP transport is implemented separately in [sessions](sessions.md); a separate [desktop layer](desktop.md) renders basic styled text and line controls. Passive TTYPE/NAWS, remote ECHO, and SGA behavior is implemented in the separate option handler below; other extensions remain planned. The references below establish wire syntax and negotiation behavior, not a claim of complete Telnet or MUD compatibility.
+Byte-level Telnet decoding/encoding, configurable Q-method negotiation, and independent bounded UTF-8/ANSI presentation decoding are implemented. Bounded TCP transport is implemented separately in [sessions](sessions.md); a separate [desktop layer](desktop.md) renders basic styled text and line controls. Passive TTYPE/NAWS, remote ECHO, and SGA behavior is implemented in the separate option handler below; a stateless GMCP envelope codec is also implemented below, with explicit opt-in session integration. Desktop GMCP and other extensions remain planned. The references below establish wire syntax and negotiation behavior, not a claim of complete Telnet or MUD compatibility.
 
 ## Implemented Telnet framing
 
@@ -143,6 +143,77 @@ The state machine follows the symmetric Q method in [RFC 1143, section 7](https:
 
 Process received negotiation events in order and deliver returned commands in operation order alongside other outgoing events. Negotiator state advances when a command is returned, not on successful delivery. Dropping a command and continuing can desynchronize the peers: the session owner must tear down/reset on output failure and manage bounded queues. The implemented TCP session layer provides these guarantees using default-deny or the explicit implemented-options profile. Other decoded events remain the caller's responsibility; these modules do not activate subnegotiation handlers or execute commands.
 
+## Implemented GMCP envelope codec
+
+`protocols::gmcp` is a stateless, transport-independent codec following the
+[TinTin++ GMCP guide](https://tintin.mudhalla.net/protocols/gmcp/). It consumes one
+complete, already-unescaped option-201 subnegotiation payload from the Telnet
+decoder. It has no streaming state, queue, package cache, networking, or rendering.
+The explicit [GMCP session profile](sessions.md#opt-in-gmcp-profile) integrates
+this codec with TCP. Default and desktop profiles still refuse GMCP; the desktop
+does not consume these messages.
+
+| API | Contract |
+|---|---|
+| `GMCP` | Telnet option code 201 |
+| `GmcpMessage { package, data }` | Case-preserved `String` and `Option<serde_json::Value>`; public fields are validated on encoding |
+| `decode(&[u8])` | Returns one complete message or a payload-free `GmcpError` |
+| `to_subnegotiation(&GmcpMessage)` | Returns a validated `TelnetEvent::Subnegotiation`; pass it to the existing Telnet encoder for framing and IAC escaping |
+
+The first ASCII space separates the package from JSON. Without a separator there
+is no data; with one, exactly one JSON value is required, with ordinary JSON
+whitespace allowed. Absent data and explicit `null` are distinct. Objects, arrays,
+and scalars are accepted. Encoding emits compact JSON and exactly one separator
+when data exists, otherwise just the package name.
+
+Names remain opaque, including unknown packages and `MSDP`; no case folding,
+namespace dispatch, Core handshake, subscriptions, or game-specific semantics are
+implemented. JSON keys preserve case. Standard `serde_json::Value` semantics
+apply: duplicate object keys retain their last value, numbers use the library's
+integer/floating-point representation, and original spelling, whitespace and
+object-key order are not preserved. Out-of-range numbers rejected by serde_json
+are invalid JSON for this codec. Parsed strings remain untrusted, including
+escaped controls and markup.
+
+### Local bounds and errors
+
+The complete payload, including package and separator, is at most 64 KiB before
+Telnet escaping, reusing the wire module's limit. Names must contain 1–256 visible
+ASCII bytes (`0x21` through `0x7e`, without whitespace). JSON permits at most 64
+nested arrays/objects, counting the root container; scalar roots have depth zero.
+The name and depth restrictions are local policies, not additional GMCP syntax
+requirements.
+
+Inbound byte limits are checked before allocation; an allocation-free, string-
+and escape-aware depth preflight runs before JSON deserialization. Outbound
+values undergo depth-bounded traversal and serialization into a size-limited
+writer, including JSON escape expansion. No partial event is returned on failure.
+Allocated parser/value overhead and caller-retained messages are outside the
+payload-byte bound; callers must bound their queues and retained state.
+
+`GmcpError` distinguishes invalid names, UTF-8, JSON, payload size, nesting depth,
+and serialization failure. Errors contain no payloads or underlying parser error
+strings. Each failed call rejects only its message; subsequent calls work without
+`reset` or `finish`. Telnet framing errors retain their existing fatal/latching
+contract. The GMCP codec does not close a connection or flush presentation state.
+
+### Negotiation composition
+
+The caller owns negotiation and must process events in order. A passive client
+allows remote option 201 in the existing Q-method negotiator, then responds to a
+server's `WILL` with `DO`. Effective remote enablement authorizes both receiving
+and sending GMCP; the client does not also need local GMCP enablement. Do not
+initiate client negotiation or act on premature/disabled payloads. Deliver every
+negotiation response and encoded frame in order, or terminate the connection.
+
+On `WONT`, disable GMCP and clear any caller-owned package state. A later `WILL`
+starts a fresh exchange, including after server copyover; reconnection starts
+with fresh negotiator state. No package state exists inside this codec.
+`src-tauri/tests/gmcp_wire.rs` provides bounded in-memory composition examples,
+including send gating and quiescent refusal. The explicit GMCP session profile
+provides production integration; in-memory tests do not establish live-server
+compatibility.
+
 ## Protocol roadmap
 
 | Protocol | Intended capability | Reference |
@@ -150,7 +221,7 @@ Process received negotiation events in order and deliver returned commands in op
 | Telnet | Decoding, encoding, generic negotiation, and separate TCP sessions implemented; TTYPE/NAWS/ECHO/SGA implemented in an opt-in profile | [RFC 854](https://www.rfc-editor.org/rfc/rfc854), [RFC 855](https://www.rfc-editor.org/rfc/rfc855), [RFC 1143](https://www.rfc-editor.org/rfc/rfc1143) |
 | UTF-8 and ANSI controls | Bounded text decoding, basic flags plus bright/indexed/RGB SGR, and nonexecuting control events implemented; basic desktop rendering implemented separately; other styles deferred | [RFC 3629](https://www.rfc-editor.org/rfc/rfc3629), [ECMA-48](https://ecma-international.org/publications-and-standards/standards/ecma-48/) |
 | MXP | Supported markup converted into safe client display/actions | [Zugg Software MXP specification](https://www.zuggsoft.com/zmud/mxp.htm) |
-| GMCP | Negotiated structured messages and documented package handling | [Aardwolf GMCP documentation](https://www.aardwolf.com/wiki/index.php/Clients/GMCP), a server-specific reference |
+| GMCP | Bounded envelope codec and explicit TCP profile implemented; desktop integration, Core setup and package handling deferred | [TinTin++ GMCP guide](https://tintin.mudhalla.net/protocols/gmcp/); [Aardwolf packages](https://www.aardwolf.com/wiki/index.php/Clients/GMCP), a server-specific reference |
 | ATCP | Negotiated structured extension messages | [Iron Realms ATCP reference](https://www.ironrealms.com/rapture/manual/files/FeatATCP-txt.html) |
 | MSP | Sound directives subject to local resource and playback policy | [Zugg Software MSP specification](https://www.zuggsoft.com/zmud/msp.htm) |
 

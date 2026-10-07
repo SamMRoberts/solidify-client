@@ -268,7 +268,8 @@ async fn full_event_queue_pauses_reads_then_recovers_without_loss() {
             bounded(events.recv()).await.unwrap(),
             SessionEvent {
                 id: SessionId(8),
-                event: TelnetEvent::Command(241 + (index % 2) as u8)
+                event: TelnetEvent::Command(241 + (index % 2) as u8),
+                gmcp: None,
             }
         );
     }
@@ -614,6 +615,228 @@ async fn negotiated_state_publishes_before_saturated_writer_and_cancellation_joi
     scheduled_until(|| state.borrow().remote_echo).await;
     assert_eq!(events.events.len(), WRITER_CAPACITY + 1);
     assert_eq!(state.borrow().masking_generation, 1);
+    bounded(session.disconnect()).await;
+    assert!(probe.dropped.load(Ordering::SeqCst));
+}
+
+fn gmcp_profile() -> SessionOptions {
+    SessionOptions::MudClientGmcp {
+        size: TerminalSize::default(),
+    }
+}
+
+#[tokio::test]
+async fn gmcp_queued_send_is_rejected_after_disable_or_copyover() {
+    for reenable in [false, true] {
+        let mut input = vec![255, 251, gmcp::GMCP];
+        // Keep the disable/re-enable in the same decoded read batch. The
+        // coordinator must finish that batch before processing a queued send.
+        input.extend([255, 241].repeat(EVENT_CAPACITY + 1));
+        input.extend([255, 252, gmcp::GMCP]);
+        if reenable {
+            input.extend([255, 251, gmcp::GMCP]);
+        }
+        let (io, probe) = TestIo::new(input, Writes::Short(1));
+        let (mut session, mut events) = driver::start_with_options(
+            SessionId(401),
+            io,
+            SessionConfig::default(),
+            gmcp_profile(),
+        );
+        scheduled_until(|| events.events.len() == EVENT_CAPACITY).await;
+        assert_eq!(session.options.borrow().gmcp_generation, 1);
+        let message = gmcp::decode(b"Must.NotReplay {} ").unwrap();
+        let mut send = Box::pin(session.send_gmcp(&message));
+        assert!(std::future::poll_fn(|cx| Poll::Ready(send.as_mut().poll(cx).is_pending())).await);
+        assert_eq!(session.commands.capacity(), COMMAND_CAPACITY - 1);
+        for _ in 0..EVENT_CAPACITY + 3 + usize::from(reenable) {
+            bounded(events.recv()).await.unwrap();
+        }
+        assert_eq!(
+            bounded(send.as_mut()).await,
+            Err(if reenable {
+                GmcpSendError::StaleGeneration
+            } else {
+                GmcpSendError::Disabled
+            })
+        );
+        drop(send);
+        let mut expected = vec![255, 253, gmcp::GMCP, 255, 254, gmcp::GMCP];
+        if reenable {
+            expected.extend([255, 253, gmcp::GMCP]);
+        }
+        scheduled_until(|| probe.written.lock().unwrap().len() == expected.len()).await;
+        assert_eq!(*probe.written.lock().unwrap(), expected);
+        bounded(session.disconnect()).await;
+        assert!(probe.dropped.load(Ordering::SeqCst));
+    }
+}
+
+#[tokio::test]
+async fn gmcp_receive_pressure_preserves_every_raw_and_parsed_message() {
+    let mut input = vec![255, 251, gmcp::GMCP];
+    let frame = b"\xff\xfa\xc9P 1\xff\xf0";
+    input.extend(frame.repeat(2000));
+    let (io, probe) = TestIo::new(input, Writes::Short(1));
+    let (mut session, mut events) =
+        driver::start_with_options(SessionId(402), io, SessionConfig::default(), gmcp_profile());
+    scheduled_until(|| events.events.len() == EVENT_CAPACITY).await;
+    assert_eq!(probe.reads.load(Ordering::SeqCst), 1);
+    for _ in 0..20 {
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(probe.reads.load(Ordering::SeqCst), 1);
+    assert!(bounded(events.recv()).await.unwrap().gmcp.is_none());
+    for _ in 0..2000 {
+        let event = bounded(events.recv()).await.unwrap();
+        assert_eq!(event.id, SessionId(402));
+        assert_eq!(event.gmcp, Some(gmcp::decode(b"P 1")));
+        assert_eq!(
+            event.event,
+            TelnetEvent::Subnegotiation {
+                option: gmcp::GMCP,
+                payload: b"P 1".to_vec(),
+            }
+        );
+    }
+    bounded(session.disconnect()).await;
+    assert!(probe.dropped.load(Ordering::SeqCst));
+}
+
+#[tokio::test]
+async fn gmcp_uses_shared_command_capacity_and_pending_waits_end_on_consumer_drop() {
+    let mut input = vec![255, 251, gmcp::GMCP];
+    input.extend([255, 241].repeat(EVENT_CAPACITY + 1));
+    let (io, probe) = TestIo::new(input, Writes::Short(1));
+    let (mut session, events) =
+        driver::start_with_options(SessionId(403), io, SessionConfig::default(), gmcp_profile());
+    scheduled_until(|| events.events.len() == EVENT_CAPACITY).await;
+    let message = gmcp::decode(b"P null").unwrap();
+    let mut pending = Box::pin(session.send_gmcp(&message));
+    assert!(std::future::poll_fn(|cx| Poll::Ready(pending.as_mut().poll(cx).is_pending())).await);
+    for _ in 1..COMMAND_CAPACITY {
+        session.try_send_data(b"data").unwrap();
+    }
+    assert_eq!(
+        session.try_send_data(b"overflow"),
+        Err(SendError::QueueFull)
+    );
+    assert_eq!(
+        bounded(session.send_gmcp(&message)).await,
+        Err(GmcpSendError::QueueFull)
+    );
+    drop(events);
+    assert_eq!(bounded(pending.as_mut()).await, Err(GmcpSendError::Closed));
+    drop(pending);
+    assert_eq!(
+        reason(bounded(session.closed()).await),
+        CloseReason::ConsumerDropped
+    );
+    assert!(probe.dropped.load(Ordering::SeqCst));
+}
+
+#[tokio::test(start_paused = true)]
+async fn gmcp_partial_writes_timeout_or_fail_without_replay() {
+    for failure in [false, true] {
+        // Let the three-byte DO and the GMCP IAC byte through, then stop.
+        let writes = if failure {
+            Writes::FailAfter(4)
+        } else {
+            Writes::StallAfter(4)
+        };
+        let (io, probe) = TestIo::new(vec![255, 251, gmcp::GMCP], writes);
+        let (mut session, mut events) = driver::start_with_options(
+            SessionId(404),
+            io,
+            SessionConfig::default(),
+            gmcp_profile(),
+        );
+        bounded(events.recv()).await.unwrap();
+        let message = gmcp::decode(b"P {\"value\":42}").unwrap();
+        assert_eq!(bounded(session.send_gmcp(&message)).await, Ok(()));
+        let closed = tokio::time::timeout(Duration::from_secs(6), session.closed())
+            .await
+            .unwrap();
+        assert_eq!(
+            reason(closed),
+            if failure {
+                CloseReason::Io {
+                    operation: IoOperation::Write,
+                    kind: io::ErrorKind::BrokenPipe,
+                }
+            } else {
+                CloseReason::WriteTimedOut
+            }
+        );
+        assert_eq!(*probe.written.lock().unwrap(), [255, 253, gmcp::GMCP, 255]);
+        assert!(probe.dropped.load(Ordering::SeqCst));
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn gmcp_blocked_writer_admission_is_cancelled_and_workers_join() {
+    for timeout in [false, true] {
+        let (io, probe) = TestIo::new(vec![255, 251, gmcp::GMCP], Writes::StallAfter(4));
+        let (mut session, mut events) = driver::start_with_options(
+            SessionId(405),
+            io,
+            SessionConfig::default(),
+            gmcp_profile(),
+        );
+        bounded(events.recv()).await.unwrap();
+        let message = gmcp::decode(b"P null").unwrap();
+        assert_eq!(bounded(session.send_gmcp(&message)).await, Ok(()));
+        scheduled_until(|| probe.written.lock().unwrap().len() == 4).await;
+        for _ in 0..WRITER_CAPACITY {
+            assert_eq!(bounded(session.send_gmcp(&message)).await, Ok(()));
+        }
+        let mut pending = Box::pin(session.send_gmcp(&message));
+        assert!(
+            std::future::poll_fn(|cx| Poll::Ready(pending.as_mut().poll(cx).is_pending())).await
+        );
+        scheduled_until(|| session.commands.capacity() == COMMAND_CAPACITY).await;
+        for _ in 0..COMMAND_CAPACITY {
+            session.try_send_data(b"queued").unwrap();
+        }
+        assert_eq!(
+            bounded(session.send_gmcp(&message)).await,
+            Err(GmcpSendError::QueueFull)
+        );
+        if timeout {
+            tokio::time::advance(Duration::from_secs(6)).await;
+        } else {
+            request_stop(&session.stop, CloseReason::Disconnected);
+        }
+        assert_eq!(bounded(pending.as_mut()).await, Err(GmcpSendError::Closed));
+        drop(pending);
+        assert_eq!(
+            reason(bounded(session.closed()).await),
+            if timeout {
+                CloseReason::WriteTimedOut
+            } else {
+                CloseReason::Disconnected
+            }
+        );
+        assert_eq!(*probe.written.lock().unwrap(), [255, 253, gmcp::GMCP, 255]);
+        assert!(probe.dropped.load(Ordering::SeqCst));
+    }
+}
+
+#[tokio::test]
+async fn gmcp_cancelled_acknowledgment_does_not_retract_fifo_short_writes() {
+    let (io, probe) = TestIo::new(vec![255, 251, gmcp::GMCP], Writes::Short(1));
+    let (mut session, mut events) =
+        driver::start_with_options(SessionId(406), io, SessionConfig::default(), gmcp_profile());
+    bounded(events.recv()).await.unwrap();
+    let message = gmcp::decode(b"P [1,2]").unwrap();
+    session.try_send_data(b"before").unwrap();
+    let mut send = Box::pin(session.send_gmcp(&message));
+    assert!(std::future::poll_fn(|cx| Poll::Ready(send.as_mut().poll(cx).is_pending())).await);
+    drop(send);
+    session.try_send_data(b"after").unwrap();
+    let expected = b"\xff\xfd\xc9before\xff\xfa\xc9P [1,2]\xff\xf0after";
+    scheduled_until(|| probe.written.lock().unwrap().len() == expected.len()).await;
+    assert_eq!(*probe.written.lock().unwrap(), expected);
     bounded(session.disconnect()).await;
     assert!(probe.dropped.load(Ordering::SeqCst));
 }
