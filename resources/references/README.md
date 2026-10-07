@@ -28,7 +28,10 @@ Checked on 2026-10-06. Tokio is distributed under the MIT license; Cargo fetches
 | [RFC 854](https://www.rfc-editor.org/rfc/rfc854) | Telnet transport semantics and negotiation |
 | [RFC 855](https://www.rfc-editor.org/rfc/rfc855) | Telnet option specifications |
 | [RFC 1143: The Q Method of Implementing TELNET Option Negotiation](https://www.rfc-editor.org/rfc/rfc1143) | Section 7 state transitions used by the generic negotiator; no option-specific semantics or transport coverage |
+| [RFC 3629: UTF-8, a transformation format of ISO 10646](https://www.rfc-editor.org/rfc/rfc3629) | UTF-8 scalar/byte validity; replacement and recovery policies are documented local choices; checked 2026-10-06 |
 | [ECMA-48](https://ecma-international.org/publications-and-standards/standards/ecma-48/) | Control functions underlying terminal behavior; the supported subset must be documented |
+| [ECMA-48 fifth edition](https://ecma-international.org/wp-content/uploads/ECMA-48_5th_edition_june_1991.pdf) | Sections 5 and 8.3.117 inform the implemented bounded ESC/CSI and SGR subset; not full terminal conformance; checked 2026-10-06 |
+| [XTerm control sequences](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html) | OSC BEL termination compatibility only; no other xterm behavior implied; checked 2026-10-06 |
 | [Zugg Software MXP specification](https://www.zuggsoft.com/zmud/mxp.htm) | Protocol-author reference for MUD markup |
 | [Zugg Software MSP specification](https://www.zuggsoft.com/zmud/msp.htm) | Protocol-author reference for sound directives |
 | [Aardwolf GMCP documentation](https://www.aardwolf.com/wiki/index.php/Clients/GMCP) | Server-owned reference; Aardwolf packages are not universal GMCP requirements |

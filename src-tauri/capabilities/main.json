@@ -1,0 +1,6 @@
+{
+  "identifier": "main",
+  "description": "Only the bundled main window; no privileged plugins.",
+  "windows": ["main"],
+  "permissions": []
+}

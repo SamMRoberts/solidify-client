@@ -1,0 +1,35 @@
+{
+  "name": "solidify-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host localhost --port 1420 --strictPort",
+    "typecheck": "tsc --noEmit",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" package.json tsconfig.json vite.config.ts index.html src-tauri/tauri.conf.json src-tauri/capabilities/main.json",
+    "test": "vitest run",
+    "build": "npm run typecheck && vite build",
+    "tauri:dev": "tauri dev --features desktop",
+    "tauri:build": "tauri build --features desktop --no-bundle",
+    "demo": "cargo run --manifest-path src-tauri/Cargo.toml --example demo_server --"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.12.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.1",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "jsdom": "30.1.2",
+    "prettier": "3.9.9",
+    "typescript": "7.0.2",
+    "vite": "8.3.3",
+    "vitest": "5.0.3"
+  }
+}

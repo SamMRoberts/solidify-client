@@ -10,7 +10,7 @@ Own connections, read/write tasks, session identity, and teardown. These instruc
 - Handle partial reads/writes, connection errors, cancellation, and disconnects without blocking the UI or leaking tasks.
 - Preserve fixed read, send, frame, and queue bounds. Pause reads under event pressure; never drop events during normal backpressure.
 - Keep cancellation and writer failure separate from data queues. Every blocking queue operation must observe termination; awaited shutdown must join both workers. Guard the writer against unexpected coordinator exits.
-- Use the caller's runtime, numeric addresses, fresh protocol state, and caller-assigned unique IDs. Connected sessions deny every option; do not expose option enablement or silently reconnect/replay commands.
+- Use the caller's runtime, numeric addresses, fresh protocol state, and caller-assigned unique IDs. The original connect API denies every option; connect_with_options opts into the implemented MUD profile. Keep option snapshots and latest viewport state bounded and separate from data queues. Never silently reconnect/replay commands.
 - A send result acknowledges queue acceptance only. Preserve raw bytes and processing order; terminate after a cancelled partial write rather than retrying it.
 
 ## Verification

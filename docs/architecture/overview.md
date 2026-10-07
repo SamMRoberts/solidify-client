@@ -2,7 +2,7 @@
 
 ## Status and direction
 
-This is the intended organization for a Rust/Tauri MUD client. The Rust Telnet wire core and bounded Tokio TCP session library are implemented in the single `src-tauri/` package. Target platforms remain Windows, Linux, and macOS; current library verification does not establish desktop support. Tauri, the frontend, IPC, and persistence are not implemented. No external API or serialization format is defined yet.
+This is the intended organization for a Rust/Tauri MUD client. The Rust Telnet wire core, bounded Tokio TCP session library, and independent UTF-8/ANSI presentation decoder are implemented in the single `src-tauri/` package. The feature-gated Tauri 2 application and React/TypeScript frontend now implement a single-connection desktop slice. Target platforms remain Windows, Linux, and macOS; native acceptance must be reported per OS. Named saved connections and appearance are implemented; other persistence and external plugin APIs remain deferred. Internal IPC DTOs are documented in the [desktop contracts](desktop.md).
 
 ## Implemented data flow
 
@@ -10,7 +10,17 @@ Caller-provided byte slices pass through `protocols::telnet::TelnetDecoder` to a
 
 The caller may pass negotiation events to a separate `TelnetNegotiator`, which owns fixed local/remote option state and immutable allowlists. Its returned commands convert into existing events for `encode`, which emits bounded borrowed wire chunks. Direct users of the wire core preserve command/chunk order, own delivery failures, and handle non-negotiation events. See the [negotiation contract](protocols.md#implemented-option-negotiation) before integrating option behavior.
 
-The `sessions` module connects numeric socket addresses using the caller's Tokio runtime. A coordinator owns reading, protocol state, command processing, and bounded event delivery; a writer serializes encoded frames. Connected sessions use default-deny negotiation and forward every decoded event as untrusted bytes. Cancellation and terminal status bypass data queues; awaited shutdown joins both workers. See the [session contract](sessions.md) for bounds and lifecycle details.
+The `sessions` module connects numeric socket addresses using the caller's Tokio runtime. A coordinator owns reading, protocol state, command processing, and bounded event delivery; a writer serializes encoded frames. The original connect API uses default-deny negotiation; desktop sessions opt into passive TTYPE/NAWS, remote ECHO, and SGA and forward every decoded event as untrusted bytes. Cancellation and terminal status bypass data queues; awaited shutdown joins both workers. See the [session contract](sessions.md) for bounds and lifecycle details.
+
+Callers may pass only received `TelnetEvent::Data` into a connection-local
+`protocols::presentation::PresentationDecoder`. It synchronously emits bounded
+UTF-8 text, typed style snapshots, and nonexecuting control events. Other Telnet
+events remain separate and do not interrupt partial presentation state. After
+draining session events at end of input, callers finish the presentation decoder;
+presentation failure does not automatically close the session. See the
+[presentation contract](protocols.md#presentation-decoder-contract) for limits
+and strict recovery. The desktop application adds its own coordinator and bounded
+transcript renderer above these unchanged library APIs.
 
 ## Responsibilities
 
@@ -20,14 +30,15 @@ The `sessions` module connects numeric socket addresses using the caller's Tokio
 | Terminal | Output rendering, selection, scrollback, prompts, and command entry |
 | Frontend bridge | Centralized native calls, event subscriptions, and error presentation |
 | Backend commands | Validated application entrypoints with narrow capabilities |
-| Sessions | Implemented numeric TCP connections, task ownership, default-deny negotiation, bounded queues, and teardown |
-| Protocols | Telnet decoding, encoding, and generic negotiation implemented independently of UI/networking; option-specific behavior and display interpretation remain planned |
+| Application coordinator | Implemented hostname resolution, connection IDs, decoder composition, bounded polling, command acceptance, and supervised cleanup |
+| Sessions | Implemented numeric TCP connections, task ownership, default-deny and opt-in MUD negotiation, bounded queues, and teardown |
+| Protocols | Telnet decoding, encoding, generic negotiation, and UTF-8/ANSI presentation decoding implemented independently of UI/networking; TTYPE/NAWS/ECHO/SGA are implemented; other extensions remain planned |
 | Plugins | Compatibility, capabilities, callbacks, isolation, and lifecycle |
-| Storage | User settings, profiles, plugin namespaces, and safe persistence |
+| Storage | Implemented bounded saved connections and appearance; other settings and plugin namespaces remain planned |
 
-## Intended data flow
+## Application data flow
 
-User input passes from the terminal through the frontend bridge to validated backend commands. The session owns transport and outbound ordering. Incoming bytes pass through Telnet framing and negotiated extension processing before display text is interpreted for styling or supported markup. The backend delivers session-scoped display updates and structured events to the frontend.
+User input passes from the terminal through the frontend bridge to validated backend commands. The session owns transport and outbound ordering. Incoming bytes pass through Telnet framing and the supported option profile; only data enters UTF-8/ANSI decoding. The frontend polls bounded structured output and renders literal text with typed style classes. Other option extensions and markup interpretation remain deferred.
 
 This is conceptual ordering, not a mandated parser API: Telnet subnegotiations and embedded display extensions need different handling. The implementation must retain stream order and partial sequence state.
 
@@ -39,6 +50,6 @@ Each connection owns its parser state, asynchronous tasks, and subscriptions. Di
 
 The frontend cannot authorize its own native privileges. MUD text, markup, imported files, and plugin output remain untrusted at every boundary. Persistent user data belongs in application data locations; test state belongs in disposable directories.
 
-Before implementing IPC or persistence, document the minimum contracts needed by that feature, including errors, limits, and compatibility. The scaffold deliberately does not select framework, engine, database, or wire-format details.
+The desktop contracts define the implemented IPC boundary, including errors, limits, and lifecycle. The [storage contracts](storage.md) define saved profiles, locking and recovery. Future persistence and plugin features must define their own contracts before implementation; no database or plugin engine is selected.
 
 See [protocol requirements](protocols.md), [plugin design](../plugins/design.md), and [testing strategy](../development/testing.md).

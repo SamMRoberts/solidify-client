@@ -2,7 +2,9 @@
 
 ## Scope
 
-Own streaming Telnet, ANSI, MXP, GMCP, ATCP, and MSP interpretation as those protocols are implemented. These instructions supplement ancestor `AGENTS.md` files for this subtree. `telnet.rs` implements decoding; its `telnet/` modules add encoding and Q-method negotiation with colocated tests. Option-specific behavior and extension interpretation remain planned.
+Own streaming Telnet, ANSI, MXP, GMCP, ATCP, and MSP interpretation as those protocols are implemented. These instructions supplement ancestor `AGENTS.md` files for this subtree. `telnet.rs` implements decoding; its `telnet/` modules add encoding and Q-method negotiation with colocated tests. `presentation.rs` implements bounded UTF-8/ANSI decoding with tests under `presentation/`. `options.rs` implements passive TTYPE/NAWS/ECHO/SGA using the existing negotiator; other extensions and rendering remain outside these modules.
+
+Presentation supports basic flags plus bright, indexed 256-color and direct RGB SGR, preserving bounded atomic decoding.
 
 ## Working guidance
 
@@ -11,6 +13,7 @@ Own streaming Telnet, ANSI, MXP, GMCP, ATCP, and MSP interpretation as those pro
 - Document unsupported variants and malformed-input recovery against primary sources; do not claim compliance from happy-path samples.
 - Preserve the [decoder contract](../../../docs/architecture/protocols.md#implemented-telnet-framing): bounded callback events, raw bytes, strict failure latching, and explicit finish/reset. Keep changes to these semantics documented and tested.
 - Keep encoding and negotiation separate from decoding. Preserve default-deny policy, independent option directions, fixed state, and ordered command delivery; allowlists are not option implementations.
+- Preserve the [presentation contract](../../../docs/architecture/protocols.md#presentation-decoder-contract): only Telnet data is input, bounded text/escape state, atomic SGR, discarded string payloads, payload-free latched failures, and caller-owned rendering/session actions.
 
 ## Verification
 

@@ -1,5 +1,6 @@
 use super::*;
-use crate::protocols::telnet::{TelnetDecoder, TelnetNegotiator, encode};
+use crate::protocols::options::TerminalOptions;
+use crate::protocols::telnet::{TelnetDecoder, encode};
 use std::future::Future;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
@@ -52,10 +53,29 @@ impl Drop for StatusPublisher {
     }
 }
 
+#[cfg(test)]
 pub(super) fn start<S>(id: SessionId, stream: S, config: SessionConfig) -> (Session, SessionEvents)
 where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
+    start_with_options(id, stream, config, SessionOptions::DenyAll)
+}
+
+pub(super) fn start_with_options<S>(
+    id: SessionId,
+    stream: S,
+    config: SessionConfig,
+    profile: SessionOptions,
+) -> (Session, SessionEvents)
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    let initial_size = match profile {
+        SessionOptions::DenyAll => TerminalSize::default(),
+        SessionOptions::MudClient { size } => size,
+    };
+    let (viewport, viewport_rx) = watch::channel(initial_size);
+    let (options_tx, options) = watch::channel(OptionSnapshot::default());
     let (commands, command_rx) = mpsc::channel(COMMAND_CAPACITY);
     let (events, event_rx) = mpsc::channel(EVENT_CAPACITY);
     let (stop, mut stop_rx) = watch::channel(None);
@@ -84,13 +104,19 @@ where
     };
     let task = tokio::spawn(async move {
         let reason = coordinate(
-            id,
             &mut reader,
             command_rx,
             &events,
             &frames,
             &mut stop_rx,
             &mut writer,
+            ProtocolState {
+                id,
+                decoder: TelnetDecoder::new(),
+                handler: TerminalOptions::new(profile),
+                viewport: viewport_rx,
+                published: options_tx,
+            },
         )
         .await;
         request_stop(&task_stop, reason);
@@ -105,6 +131,8 @@ where
     (
         Session {
             commands,
+            viewport,
+            options,
             stop: stop.clone(),
             status,
             task: Some(task),
@@ -136,19 +164,26 @@ async fn interruptible<T>(
 enum Input {
     Read(io::Result<usize>),
     Command(Option<Vec<u8>>),
+    Viewport(TerminalSize),
+}
+
+struct ProtocolState {
+    id: SessionId,
+    decoder: TelnetDecoder,
+    handler: TerminalOptions,
+    viewport: watch::Receiver<TerminalSize>,
+    published: watch::Sender<OptionSnapshot>,
 }
 
 async fn coordinate<R: AsyncRead + Unpin>(
-    id: SessionId,
     reader: &mut R,
     mut commands: mpsc::Receiver<Vec<u8>>,
     events: &mpsc::Sender<SessionEvent>,
     frames: &mpsc::Sender<Vec<u8>>,
     stop: &mut watch::Receiver<Option<CloseReason>>,
     writer: &mut WriterTask,
+    mut options: ProtocolState,
 ) -> CloseReason {
-    let mut decoder = TelnetDecoder::new();
-    let mut negotiator = TelnetNegotiator::default();
     let mut buffer = [0; READ_BYTES];
     loop {
         let input = interruptible(
@@ -156,6 +191,7 @@ async fn coordinate<R: AsyncRead + Unpin>(
                 tokio::select! {
                     read = reader.read(&mut buffer) => Input::Read(read),
                     command = commands.recv() => Input::Command(command),
+                    _ = options.viewport.changed() => Input::Viewport(*options.viewport.borrow_and_update()),
                 }
             },
             stop,
@@ -164,6 +200,17 @@ async fn coordinate<R: AsyncRead + Unpin>(
         .await;
         match input {
             Err(reason) => return reason,
+            Ok(Input::Viewport(size)) => {
+                let mut response = None;
+                options
+                    .handler
+                    .set_size(size, |event| response = Some(event));
+                if let Some(event) = response
+                    && let Err(reason) = send_frame(event, frames, stop, writer).await
+                {
+                    return reason;
+                }
+            }
             Ok(Input::Command(None)) => return CloseReason::OwnerDropped,
             Ok(Input::Command(Some(data))) => {
                 if let Err(reason) = send_frame(TelnetEvent::Data(data), frames, stop, writer).await
@@ -179,7 +226,7 @@ async fn coordinate<R: AsyncRead + Unpin>(
                 };
             }
             Ok(Input::Read(Ok(0))) => {
-                return match decoder.finish() {
+                return match options.decoder.finish() {
                     Ok(()) => CloseReason::PeerEof,
                     Err(error) => CloseReason::Protocol(error),
                 };
@@ -188,17 +235,41 @@ async fn coordinate<R: AsyncRead + Unpin>(
                 // At most one 4 KiB read's events plus a completed retained payload.
                 // No further read occurs until this finite batch has been delivered.
                 let mut batch = Vec::new();
-                if let Err(error) = decoder.feed(&buffer[..length], |event| batch.push(event)) {
+                if let Err(error) = options
+                    .decoder
+                    .feed(&buffer[..length], |event| batch.push(event))
+                {
                     return CloseReason::Protocol(error);
                 }
                 for event in batch {
-                    if let TelnetEvent::Negotiation { verb, option } = &event
-                        && let Some(reply) = negotiator.receive(*verb, *option)
-                        && let Err(reason) = send_frame(reply.into(), frames, stop, writer).await
-                    {
-                        return reason;
+                    // At most two bounded responses. Publish before awaiting writer/event capacity.
+                    let mut responses = Vec::with_capacity(2);
+                    options
+                        .handler
+                        .receive(&event, |reply| responses.push(reply));
+                    let snapshot = options.handler.snapshot();
+                    options.published.send_if_modified(|old| {
+                        if *old == snapshot {
+                            false
+                        } else {
+                            *old = snapshot;
+                            true
+                        }
+                    });
+                    for reply in responses {
+                        if let Err(reason) = send_frame(reply, frames, stop, writer).await {
+                            return reason;
+                        }
                     }
-                    match interruptible(events.send(SessionEvent { id, event }), stop, writer).await
+                    match interruptible(
+                        events.send(SessionEvent {
+                            id: options.id,
+                            event,
+                        }),
+                        stop,
+                        writer,
+                    )
+                    .await
                     {
                         Err(reason) => return reason,
                         Ok(Err(_)) => return CloseReason::ConsumerDropped,
@@ -216,7 +287,7 @@ async fn send_frame(
     stop: &mut watch::Receiver<Option<CloseReason>>,
     writer: &mut WriterTask,
 ) -> Result<(), CloseReason> {
-    // Only bounded Data and three-byte negotiation replies originate here.
+    // Only bounded Data, negotiation replies, and fixed-size TTYPE/NAWS originate here.
     let mut frame = Vec::new();
     encode(&event, |bytes| frame.extend_from_slice(bytes))
         .expect("session produces valid Telnet events");

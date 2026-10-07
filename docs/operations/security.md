@@ -2,7 +2,7 @@
 
 ## Status and reporting
 
-No dependency set, security scanning workflow, supported-version policy, or private reporting channel is configured. This document records engineering requirements for the planned client, not a completed security assessment.
+Rust and frontend dependencies are locked; no security scanning workflow, supported-version policy, or private reporting channel is configured. This document records engineering requirements for the planned client, not a completed security assessment.
 
 Do not put credentials, private transcripts, or sensitive vulnerability details in public issues. If a private reporting mechanism is later configured, document and verify it before directing reporters there. Do not invent an email address or claim that private advisories are enabled.
 
@@ -16,7 +16,7 @@ Do not put credentials, private transcripts, or sensitive vulnerability details 
 
 ## Dependencies and supply chain
 
-Once manifests exist, review both Rust and frontend dependencies for provenance, maintenance, advisories, and license compatibility. [RustSec](https://rustsec.org/) and [cargo-deny](https://embarkstudios.github.io/cargo-deny/) are candidate tools, not configured checks.
+Review both Rust and frontend dependencies for provenance, maintenance, advisories, and license compatibility. [RustSec](https://rustsec.org/) and [cargo-deny](https://embarkstudios.github.io/cargo-deny/) are candidate tools, not configured checks.
 
 Review transitive dependencies and justify exceptions with scope, rationale, owner, and expiration or review conditions. A duplicate version is a review signal, not automatically a vulnerability. Passing a dependency scan does not prove application security.
 
