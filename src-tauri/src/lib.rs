@@ -9,7 +9,8 @@
 //! An opt-in profile implements passive TTYPE/NAWS, remote ECHO and SGA.
 //! The optional `profiles` feature adds bounded saved connections and transcript
 //! appearance with strict validation, exclusive locking and atomic replacement.
-//! Other option extensions and full terminal emulation are deferred.
+//! A stateless GMCP envelope codec supports bounded JSON parsing and encoding;
+//! connected GMCP, other option extensions and full terminal emulation are deferred.
 //! Its Rust interfaces are internal project contracts, not a stable plugin API.
 
 #![forbid(unsafe_code)]

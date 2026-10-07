@@ -7,7 +7,8 @@ library. Tauri 2.12.1, React 19.3.0, TypeScript 7.0.2, Vite 8.3.3 and npm are
 selected; resolved dependencies are locked in Cargo.lock and package-lock.json.
 The library baseline is Rust/Cargo 1.99.0 (edition 2024), with Tokio pinned to
 1.53.2. Protocol modules do not depend on Tokio. The `desktop` feature gates all
-Tauri dependencies; the optional `profiles` feature gates Serde/JSON storage.
+Tauri dependencies; the optional `profiles` feature gates storage and direct Serde
+derives. The GMCP codec uses pinned serde_json 1.0.151 in the ordinary library.
 Library-only work needs neither Node nor native webview development dependencies.
 
 Desktop checks were developed on macOS using Rust/Cargo 1.99.0 and Node 26.10.0 /
@@ -126,6 +127,10 @@ cargo test --manifest-path src-tauri/Cargo.toml --locked --offline --test tcp_se
 # Public-API in-memory peer integration tests.
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline --test telnet_wire
 
+# Stateless GMCP envelopes and negotiated in-memory composition (no TCP opt-in).
+cargo test --manifest-path src-tauri/Cargo.toml --locked --offline protocols::gmcp
+cargo test --manifest-path src-tauri/Cargo.toml --locked --offline --test gmcp_wire
+
 # Session unit tests and public-API TCP loopback tests.
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline sessions::tests
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline --test tcp_sessions
@@ -235,8 +240,9 @@ cargo build --manifest-path src-tauri/Cargo.toml --locked --offline --features p
 cargo doc --manifest-path src-tauri/Cargo.toml --locked --offline --features profiles --no-deps
 ```
 
-The ordinary no-feature library checks remain unchanged. `profiles` adds only
-optional Serde and the already-resolved serde_json 1.0.151; it does not enable Tauri.
+The ordinary no-feature library checks include the GMCP codec and its pinned
+serde_json 1.0.151 dependency. `profiles` adds optional direct Serde derives and
+storage; it does not enable Tauri.
 
 ## Disposable profile acceptance checklist
 

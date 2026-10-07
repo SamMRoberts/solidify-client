@@ -2,7 +2,7 @@
 
 ## Current state
 
-Executable unit tests for Telnet decoding, encoding, Q-method negotiation, and UTF-8/ANSI presentation decoding, plus deterministic session I/O tests, in-memory public-API wire tests, and TCP loopback tests, are configured through the `src-tauri/` Cargo package. The application coordinator has injected-DNS and loopback tests; the React frontend has Vitest/jsdom tests. Browser and native macOS acceptance use the loopback demo. There is no automated native driver suite, fuzz target, or CI runner; broader future-feature scenarios below remain requirements rather than passing evidence.
+Executable unit tests for Telnet decoding, encoding, Q-method negotiation, generic GMCP envelopes, and UTF-8/ANSI presentation decoding, plus deterministic session I/O tests, in-memory public-API wire tests, and TCP loopback tests, are configured through the `src-tauri/` Cargo package. The application coordinator has injected-DNS and loopback tests; the React frontend has Vitest/jsdom tests. Browser and native macOS acceptance use the loopback demo. There is no automated native driver suite, fuzz target, or CI runner; broader future-feature scenarios below remain requirements rather than passing evidence.
 
 ## Implemented parser checks
 
@@ -19,6 +19,35 @@ Colocated encoder tests check exact wire bytes, all-byte escaping, every command
 `src-tauri/tests/telnet_wire.rs` connects two synthetic peers through the public encoder → decoder → negotiator APIs. Tests cover mutual acceptance, asymmetric refusal, simultaneous complementary requests, queued reversals/cancellation, and delivery of other events to the caller. Message queues are capped at 32 entries and each settling phase at 64 exchanges; tests assert exact exchange counts, final states, and quiescence. No server or private transcript is involved.
 
 Local automated verification is on macOS with Rust/Cargo 1.99.0. Windows/Linux execution, fuzzing, and live-server compatibility remain unverified. Native macOS acceptance is recorded separately below. Protocol tests establish generic wire behavior; session tests add deterministic I/O and local TCP evidence. Separate presentation tests establish the documented text/style decoding subset. Option-profile tests establish only the implemented TTYPE/NAWS/ECHO/SGA subset. Protocol/library checks do not establish rendering or public-server compatibility; frontend and native rendering checks are separate.
+
+## Implemented GMCP checks
+
+The colocated GMCP suite covers absent data versus `null`, all JSON value types,
+Unicode/escaped controls, opaque case-preserved package names, JSON whitespace,
+duplicate keys, malformed input, trailing data, payload-free errors, and valid
+messages after rejection. Exact package, payload, and nesting boundaries are
+tested in both directions, including serialization escape expansion, oversized
+keys/arrays, deeply nested caller values, and brackets/escaped quotes in strings.
+
+`src-tauri/tests/gmcp_wire.rs` composes the public codec, Telnet decoder/encoder,
+and Q-method negotiator using synthetic in-memory peers. It checks every two-part
+split and bytewise delivery, interleaved text, exact outgoing bytes, passive
+enablement, duplicates, refusal, copyover-style disable/re-enable, independent
+peers, and both send/receive gating. Invalid UTF-8 after Telnet IAC unescaping
+rejects one GMCP message while later text/messages remain usable. Peer queues
+are capped at 32 frames, each settling phase at 64 exchanges, and final states
+and quiescence are asserted.
+
+Use the GMCP commands in [setup](setup.md#library-commands), followed by full
+default and `profiles` checks. These tests do not change production session
+negotiation, establish desktop/native integration, or prove public-MUD support.
+No captured traffic, credentials, or public servers are used.
+
+Verification on 2026-10-06: all 132 default-feature tests and 143 `profiles` tests
+passed, including seven codec tests and three GMCP wire tests. Formatting,
+Clippy with warnings denied, library builds, and API documentation passed for
+both feature configurations. Native, desktop/frontend, Windows/Linux, and
+public-server acceptance were not run for this library-only slice.
 
 ## Implemented presentation checks
 
