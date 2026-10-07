@@ -49,6 +49,35 @@ Clippy with warnings denied, library builds, and API documentation passed for
 both feature configurations. Native, desktop/frontend, Windows/Linux, and
 public-server acceptance were not run for this library-only slice.
 
+## Connected GMCP verification (2026-10-06)
+
+- **Protocol:** the explicit `MudClientGmcp` profile preserves TTYPE/NAWS/ECHO/SGA,
+  passively accepts remote GMCP, refuses the local direction, increments enable
+  generations, and ignores duplicate negotiations. Existing default/desktop
+  profile refusal tests remain intact.
+- **Loopback TCP:** three tests in `gmcp_sessions.rs` exercise byte-fragmented
+  Unicode and GMCP, raw/parsed/text ordering, invalid JSON/UTF-8 recovery,
+  premature/disabled payloads, exact outbound frames, a 64 KiB message in both
+  directions, invalid/oversized send rejection, copyover-style re-enable,
+  independent profiles, replacement-session state, peer EOF and disconnect.
+  Sockets are test-owned and every wait is bounded; no public MUD is contacted.
+- **Controlled I/O:** six session tests prove stale/disabled queued sends are
+  rejected, the shared 32-slot queue rejects overflow, 2,000 parsed/raw messages
+  survive receive pressure without loss or extra reads while blocked, abandoned
+  acknowledgment waits preserve FIFO one-byte writes, and pending sends end on
+  consumer drop, disconnect or writer timeout. Partial GMCP writes terminate on
+  deadline/error without replay; resource probes confirm joined cleanup.
+- **Automated:** all 142 default-feature tests and 153 `profiles` tests pass.
+  Formatting, warnings-denied Clippy, builds and API documentation are checked
+  for both configurations. Desktop all-target compilation checks compatibility
+  of the additive Rust fields/variant; desktop behavior is unchanged.
+- **Limits:** desktop/frontend GMCP integration, native runtime acceptance,
+  Windows/Linux execution, Core/package handling and public-MUD compatibility
+  are outside this slice. Old native records do not establish GMCP acceptance.
+
+See the [slice contract and gates](connected-gmcp-slice.md) and
+[session contract](../architecture/sessions.md#opt-in-gmcp-profile).
+
 ## Implemented presentation checks
 
 Colocated `presentation/tests.rs` tests compare whole-stream, every two-part

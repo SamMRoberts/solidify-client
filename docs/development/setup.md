@@ -127,9 +127,14 @@ cargo test --manifest-path src-tauri/Cargo.toml --locked --offline --test tcp_se
 # Public-API in-memory peer integration tests.
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline --test telnet_wire
 
-# Stateless GMCP envelopes and negotiated in-memory composition (no TCP opt-in).
+# Stateless GMCP envelopes and negotiated in-memory composition.
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline protocols::gmcp
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline --test gmcp_wire
+
+# Explicit GMCP profile, session pressure/races, and public loopback exchanges.
+cargo test --manifest-path src-tauri/Cargo.toml --locked --offline protocols::options
+cargo test --manifest-path src-tauri/Cargo.toml --locked --offline sessions::tests::gmcp
+cargo test --manifest-path src-tauri/Cargo.toml --locked --offline --test gmcp_sessions
 
 # Session unit tests and public-API TCP loopback tests.
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline sessions::tests

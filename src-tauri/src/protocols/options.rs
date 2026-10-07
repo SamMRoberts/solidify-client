@@ -1,9 +1,11 @@
-//! Passive, bounded TTYPE/NAWS/ECHO/SGA behavior over the existing Q method.
+//! Passive terminal options and explicit GMCP negotiation over the existing Q method.
 //!
 //! Each receive emits at most two responses (a negotiation acknowledgment and
 //! initial NAWS); updates emit at most one. Deliver callbacks in order or close
 //! the session. Unsupported option payloads are ignored; framing belongs to Telnet.
+//! The session coordinator interprets enabled GMCP payloads separately.
 
+use super::gmcp::GMCP;
 use super::telnet::{OptionDirection, OptionPolicy, TelnetEvent, TelnetNegotiator};
 
 pub const ECHO: u8 = 1;
@@ -35,6 +37,10 @@ pub enum SessionOptions {
     MudClient {
         size: TerminalSize,
     },
+    /// Explicit GMCP opt-in; the desktop continues to use MudClient.
+    MudClientGmcp {
+        size: TerminalSize,
+    },
 }
 
 /// Fixed snapshot independent of text delivery. Generation remembers transient
@@ -47,12 +53,16 @@ pub struct OptionSnapshot {
     pub local_sga: bool,
     pub remote_sga: bool,
     pub masking_generation: u64,
+    pub gmcp: bool,
+    /// Advances on each remote GMCP enable, fencing sends across copyover.
+    pub gmcp_generation: u64,
 }
 
 pub struct TerminalOptions {
     negotiator: TelnetNegotiator,
     size: TerminalSize,
     masking_generation: u64,
+    gmcp_generation: u64,
 }
 impl TerminalOptions {
     pub fn new(profile: SessionOptions) -> Self {
@@ -61,11 +71,16 @@ impl TerminalOptions {
             SessionOptions::MudClient { size } => {
                 (OptionPolicy::new(&[TTYPE, NAWS, SGA], &[ECHO, SGA]), size)
             }
+            SessionOptions::MudClientGmcp { size } => (
+                OptionPolicy::new(&[TTYPE, NAWS, SGA], &[ECHO, SGA, GMCP]),
+                size,
+            ),
         };
         Self {
             negotiator: TelnetNegotiator::new(policy),
             size,
             masking_generation: 0,
+            gmcp_generation: 0,
         }
     }
     pub fn snapshot(&self) -> OptionSnapshot {
@@ -78,6 +93,8 @@ impl TerminalOptions {
             local_sga: local(SGA),
             remote_sga: remote(SGA),
             masking_generation: self.masking_generation,
+            gmcp: remote(GMCP),
+            gmcp_generation: self.gmcp_generation,
         }
     }
     pub fn receive(&mut self, event: &TelnetEvent, mut emit: impl FnMut(TelnetEvent)) {
@@ -90,6 +107,9 @@ impl TerminalOptions {
                 let after = self.snapshot();
                 if !before.remote_echo && after.remote_echo {
                     self.masking_generation = self.masking_generation.saturating_add(1);
+                }
+                if !before.gmcp && after.gmcp {
+                    self.gmcp_generation = self.gmcp_generation.saturating_add(1);
                 }
                 if !before.window_size && after.window_size {
                     emit(self.naws());
@@ -173,7 +193,8 @@ mod tests {
                 remote_echo: true,
                 local_sga: true,
                 remote_sga: true,
-                masking_generation: 1
+                masking_generation: 1,
+                ..Default::default()
             }
         );
         assert_eq!(b.snapshot(), OptionSnapshot::default());
@@ -301,6 +322,49 @@ mod tests {
         }
         assert_eq!(run(wire.chunks(1).collect()), expected);
     }
+    #[test]
+    fn gmcp_is_explicit_passive_and_tracks_enable_generations() {
+        let mut a = TerminalOptions::new(SessionOptions::MudClientGmcp {
+            size: TerminalSize::default(),
+        });
+        assert_eq!(a.snapshot(), OptionSnapshot::default());
+        assert_eq!(
+            receive(&mut a, negotiation(Do, GMCP)),
+            [negotiation(Wont, GMCP)]
+        );
+        for generation in 1..=2 {
+            assert_eq!(
+                receive(&mut a, negotiation(Will, GMCP)),
+                [negotiation(Do, GMCP)]
+            );
+            assert!(a.snapshot().gmcp);
+            assert_eq!(a.snapshot().gmcp_generation, generation);
+            assert!(receive(&mut a, negotiation(Will, GMCP)).is_empty());
+            assert_eq!(a.snapshot().gmcp_generation, generation);
+            assert_eq!(
+                receive(&mut a, negotiation(Wont, GMCP)),
+                [negotiation(Dont, GMCP)]
+            );
+            assert!(!a.snapshot().gmcp);
+            assert_eq!(a.snapshot().gmcp_generation, generation);
+        }
+        for (verb, option) in [
+            (Do, TTYPE),
+            (Do, NAWS),
+            (Will, ECHO),
+            (Do, SGA),
+            (Will, SGA),
+        ] {
+            assert!(!receive(&mut a, negotiation(verb, option)).is_empty());
+        }
+        let snapshot = a.snapshot();
+        assert!(snapshot.terminal_type && snapshot.window_size && snapshot.remote_echo);
+        assert!(snapshot.local_sga && snapshot.remote_sga);
+        assert_eq!(snapshot.masking_generation, 1);
+        assert_eq!(snapshot.gmcp_generation, 2);
+        assert_eq!(handler().snapshot(), OptionSnapshot::default());
+    }
+
     #[test]
     fn default_profile_denies_every_option() {
         let mut a = TerminalOptions::new(SessionOptions::DenyAll);

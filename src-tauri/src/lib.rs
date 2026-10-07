@@ -10,7 +10,8 @@
 //! The optional `profiles` feature adds bounded saved connections and transcript
 //! appearance with strict validation, exclusive locking and atomic replacement.
 //! A stateless GMCP envelope codec supports bounded JSON parsing and encoding;
-//! connected GMCP, other option extensions and full terminal emulation are deferred.
+//! an explicit session profile adds connected GMCP with ordered interpretation and
+//! bounded sends. Desktop GMCP, package semantics and full terminal emulation are deferred.
 //! Its Rust interfaces are internal project contracts, not a stable plugin API.
 
 #![forbid(unsafe_code)]

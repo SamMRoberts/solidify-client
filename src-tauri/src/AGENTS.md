@@ -2,7 +2,7 @@
 
 ## Scope
 
-Own backend composition across commands, sessions, protocols, plugins, and storage. These instructions supplement ancestor `AGENTS.md` files for this subtree. The library entrypoint, Telnet decoding/encoding/negotiation and UTF-8/ANSI presentation decoding under `protocols/`, and bounded Tokio TCP sessions under `sessions/` are implemented. `application/` owns the single-connection coordinator; `main.rs` and `commands/` provide feature-gated Tauri composition and DTOs. `storage/` implements feature-gated saved connections and appearance with bounded admission, strict validation, locking and atomic replacement. The stateless `protocols::gmcp` envelope codec is implemented; connected GMCP and package behavior remain deferred. Plugins remain guidance only.
+Own backend composition across commands, sessions, protocols, plugins, and storage. These instructions supplement ancestor `AGENTS.md` files for this subtree. The library entrypoint, Telnet decoding/encoding/negotiation and UTF-8/ANSI presentation decoding under `protocols/`, and bounded Tokio TCP sessions under `sessions/` are implemented. `application/` owns the single-connection coordinator; `main.rs` and `commands/` provide feature-gated Tauri composition and DTOs. `storage/` implements feature-gated saved connections and appearance with bounded admission, strict validation, locking and atomic replacement. The stateless `protocols::gmcp` envelope codec is implemented; explicit opt-in sessions integrate it; desktop GMCP and package behavior remain deferred. Plugins remain guidance only.
 
 ## Working guidance
 

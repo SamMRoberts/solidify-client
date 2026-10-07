@@ -2,7 +2,7 @@
 
 ## Status
 
-Byte-level Telnet decoding/encoding, configurable Q-method negotiation, and independent bounded UTF-8/ANSI presentation decoding are implemented. Bounded TCP transport is implemented separately in [sessions](sessions.md); a separate [desktop layer](desktop.md) renders basic styled text and line controls. Passive TTYPE/NAWS, remote ECHO, and SGA behavior is implemented in the separate option handler below; a stateless GMCP envelope codec is also implemented below, while connected GMCP and other extensions remain planned. The references below establish wire syntax and negotiation behavior, not a claim of complete Telnet or MUD compatibility.
+Byte-level Telnet decoding/encoding, configurable Q-method negotiation, and independent bounded UTF-8/ANSI presentation decoding are implemented. Bounded TCP transport is implemented separately in [sessions](sessions.md); a separate [desktop layer](desktop.md) renders basic styled text and line controls. Passive TTYPE/NAWS, remote ECHO, and SGA behavior is implemented in the separate option handler below; a stateless GMCP envelope codec is also implemented below, with explicit opt-in session integration. Desktop GMCP and other extensions remain planned. The references below establish wire syntax and negotiation behavior, not a claim of complete Telnet or MUD compatibility.
 
 ## Implemented Telnet framing
 
@@ -149,8 +149,9 @@ Process received negotiation events in order and deliver returned commands in op
 [TinTin++ GMCP guide](https://tintin.mudhalla.net/protocols/gmcp/). It consumes one
 complete, already-unescaped option-201 subnegotiation payload from the Telnet
 decoder. It has no streaming state, queue, package cache, networking, or rendering.
-Connected GMCP is still deferred: both existing session profiles refuse it, and
-the desktop does not consume these messages.
+The explicit [GMCP session profile](sessions.md#opt-in-gmcp-profile) integrates
+this codec with TCP. Default and desktop profiles still refuse GMCP; the desktop
+does not consume these messages.
 
 | API | Contract |
 |---|---|
@@ -209,8 +210,9 @@ On `WONT`, disable GMCP and clear any caller-owned package state. A later `WILL`
 starts a fresh exchange, including after server copyover; reconnection starts
 with fresh negotiator state. No package state exists inside this codec.
 `src-tauri/tests/gmcp_wire.rs` provides bounded in-memory composition examples,
-including send gating and quiescent refusal. These do not enable GMCP in the
-production TCP session API or establish live-server compatibility.
+including send gating and quiescent refusal. The explicit GMCP session profile
+provides production integration; in-memory tests do not establish live-server
+compatibility.
 
 ## Protocol roadmap
 
@@ -219,7 +221,7 @@ production TCP session API or establish live-server compatibility.
 | Telnet | Decoding, encoding, generic negotiation, and separate TCP sessions implemented; TTYPE/NAWS/ECHO/SGA implemented in an opt-in profile | [RFC 854](https://www.rfc-editor.org/rfc/rfc854), [RFC 855](https://www.rfc-editor.org/rfc/rfc855), [RFC 1143](https://www.rfc-editor.org/rfc/rfc1143) |
 | UTF-8 and ANSI controls | Bounded text decoding, basic flags plus bright/indexed/RGB SGR, and nonexecuting control events implemented; basic desktop rendering implemented separately; other styles deferred | [RFC 3629](https://www.rfc-editor.org/rfc/rfc3629), [ECMA-48](https://ecma-international.org/publications-and-standards/standards/ecma-48/) |
 | MXP | Supported markup converted into safe client display/actions | [Zugg Software MXP specification](https://www.zuggsoft.com/zmud/mxp.htm) |
-| GMCP | Bounded generic envelope codec implemented; connected negotiation, Core setup and package handling deferred | [TinTin++ GMCP guide](https://tintin.mudhalla.net/protocols/gmcp/); [Aardwolf packages](https://www.aardwolf.com/wiki/index.php/Clients/GMCP), a server-specific reference |
+| GMCP | Bounded envelope codec and explicit TCP profile implemented; desktop integration, Core setup and package handling deferred | [TinTin++ GMCP guide](https://tintin.mudhalla.net/protocols/gmcp/); [Aardwolf packages](https://www.aardwolf.com/wiki/index.php/Clients/GMCP), a server-specific reference |
 | ATCP | Negotiated structured extension messages | [Iron Realms ATCP reference](https://www.ironrealms.com/rapture/manual/files/FeatATCP-txt.html) |
 | MSP | Sound directives subject to local resource and playback policy | [Zugg Software MSP specification](https://www.zuggsoft.com/zmud/msp.htm) |
 

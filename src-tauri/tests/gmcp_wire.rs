@@ -1,4 +1,4 @@
-//! Synthetic, bounded composition: production sessions still refuse GMCP.
+//! Synthetic, bounded composition: default and desktop sessions still refuse GMCP.
 use solidify_client::protocols::{
     gmcp::{self, GMCP, GmcpError, GmcpMessage},
     telnet::{

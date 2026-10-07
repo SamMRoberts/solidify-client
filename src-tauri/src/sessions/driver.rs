@@ -72,7 +72,7 @@ where
 {
     let initial_size = match profile {
         SessionOptions::DenyAll => TerminalSize::default(),
-        SessionOptions::MudClient { size } => size,
+        SessionOptions::MudClient { size } | SessionOptions::MudClientGmcp { size } => size,
     };
     let (viewport, viewport_rx) = watch::channel(initial_size);
     let (options_tx, options) = watch::channel(OptionSnapshot::default());
@@ -163,7 +163,7 @@ async fn interruptible<T>(
 
 enum Input {
     Read(io::Result<usize>),
-    Command(Option<Vec<u8>>),
+    Command(Option<SessionCommand>),
     Viewport(TerminalSize),
 }
 
@@ -177,7 +177,7 @@ struct ProtocolState {
 
 async fn coordinate<R: AsyncRead + Unpin>(
     reader: &mut R,
-    mut commands: mpsc::Receiver<Vec<u8>>,
+    mut commands: mpsc::Receiver<SessionCommand>,
     events: &mpsc::Sender<SessionEvent>,
     frames: &mpsc::Sender<Vec<u8>>,
     stop: &mut watch::Receiver<Option<CloseReason>>,
@@ -212,10 +212,37 @@ async fn coordinate<R: AsyncRead + Unpin>(
                 }
             }
             Ok(Input::Command(None)) => return CloseReason::OwnerDropped,
-            Ok(Input::Command(Some(data))) => {
+            Ok(Input::Command(Some(SessionCommand::Data(data)))) => {
                 if let Err(reason) = send_frame(TelnetEvent::Data(data), frames, stop, writer).await
                 {
                     return reason;
+                }
+            }
+            Ok(Input::Command(Some(SessionCommand::Gmcp {
+                event,
+                generation,
+                reply,
+            }))) => {
+                let snapshot = options.handler.snapshot();
+                let rejection = if !snapshot.gmcp {
+                    Some(GmcpSendError::Disabled)
+                } else if snapshot.gmcp_generation != generation || generation == u64::MAX {
+                    Some(GmcpSendError::StaleGeneration)
+                } else {
+                    None
+                };
+                if let Some(error) = rejection {
+                    let _ = reply.send(Err(error));
+                } else {
+                    match send_frame(event, frames, stop, writer).await {
+                        Ok(()) => {
+                            let _ = reply.send(Ok(()));
+                        }
+                        Err(reason) => {
+                            let _ = reply.send(Err(GmcpSendError::Closed));
+                            return reason;
+                        }
+                    }
                 }
             }
             Ok(Input::Read(Err(error))) if error.kind() == io::ErrorKind::Interrupted => continue,
@@ -261,10 +288,18 @@ async fn coordinate<R: AsyncRead + Unpin>(
                             return reason;
                         }
                     }
+                    let gmcp = match &event {
+                        TelnetEvent::Subnegotiation {
+                            option: gmcp::GMCP,
+                            payload,
+                        } if snapshot.gmcp => Some(gmcp::decode(payload)),
+                        _ => None,
+                    };
                     match interruptible(
                         events.send(SessionEvent {
                             id: options.id,
                             event,
+                            gmcp,
                         }),
                         stop,
                         writer,
@@ -287,7 +322,7 @@ async fn send_frame(
     stop: &mut watch::Receiver<Option<CloseReason>>,
     writer: &mut WriterTask,
 ) -> Result<(), CloseReason> {
-    // Only bounded Data, negotiation replies, and fixed-size TTYPE/NAWS originate here.
+    // Bounded Data, validated GMCP, and fixed-size option responses originate here.
     let mut frame = Vec::new();
     encode(&event, |bytes| frame.extend_from_slice(bytes))
         .expect("session produces valid Telnet events");

@@ -15,7 +15,8 @@ or a public server.
 The independent Rust library retains bounded Telnet decoding/encoding, RFC 1143
 Q-method negotiation, numeric-address sessions, and UTF-8/ANSI presentation
 decoding. A stateless GMCP envelope codec adds bounded JSON parsing/encoding;
-connected GMCP and package behavior remain deferred. Default sessions deny all
+an explicit session profile adds connected GMCP with ordered interpretation and
+bounded sends. Desktop GMCP and package behavior remain deferred. Default sessions deny all
 options; desktop sessions opt into TTYPE,
 NAWS, remote ECHO, and SGA. Protocol modules remain independent
 of Tokio; the crate pins Tokio 1.53.2. Tauri is gated behind the `desktop` feature.
@@ -61,7 +62,7 @@ Clippy, build, documentation, desktop-feature and frontend commands are in
 ## Deferred capabilities
 
 Multiple sessions, credentials, TLS, other Telnet option handlers, other persistence,
-plugins, connected GMCP and package handling, MXP/ATCP/MSP, cursor addressing,
+plugins, desktop GMCP and package handling, MXP/ATCP/MSP, cursor addressing,
 full terminal emulation, installers/signing and CI remain deferred. Windows/Linux
 runtime and public-MUD acceptance remain unverified. Rust and IPC interfaces are
 internal project contracts, not stable plugin APIs.
