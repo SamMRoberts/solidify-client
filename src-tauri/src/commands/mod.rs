@@ -44,6 +44,8 @@ pub struct Snapshot {
     message: String,
     events: Vec<Event>,
     finished: bool,
+    remote_echo: bool,
+    masking_generation: String,
 }
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
@@ -144,6 +146,8 @@ pub async fn poll_connection(
         message: poll.status.message,
         events,
         finished: poll.finished,
+        remote_echo: poll.options.remote_echo,
+        masking_generation: poll.options.masking_generation.to_string(),
     })
 }
 #[tauri::command]
@@ -156,6 +160,18 @@ pub async fn send_line(
     authorize(&window)?;
     app.send_line(id(&session_id)?, &text)
         .await
+        .map_err(|e| e.to_string())
+}
+#[tauri::command]
+pub async fn update_viewport(
+    window: WebviewWindow,
+    app: State<'_, Arc<Application>>,
+    session_id: String,
+    columns: u32,
+    rows: u32,
+) -> Result<(), String> {
+    authorize(&window)?;
+    app.update_viewport(id(&session_id)?, columns, rows)
         .map_err(|e| e.to_string())
 }
 #[tauri::command]

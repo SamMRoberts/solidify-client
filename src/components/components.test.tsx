@@ -123,3 +123,73 @@ it("starts following output again for a fresh connection model", () => {
   expect(node.scrollTop).toBe(1000);
   expect(screen.queryByText("Latest output ↓")).toBeNull();
 });
+
+it("protects masked drafts across automatic and manual resets and failed sends", async () => {
+  const send = vi
+    .fn()
+    .mockRejectedValueOnce("Queue full")
+    .mockResolvedValue(undefined);
+  const onError = vi.fn();
+  const view = render(
+    <CommandInput
+      connected
+      send={send}
+      onError={onError}
+      remoteEcho
+      maskingGeneration="1"
+    />,
+  );
+  const input = screen.getByLabelText("Command");
+  fireEvent.change(input, { target: { value: "synthetic input" } });
+  view.rerender(
+    <CommandInput
+      connected
+      send={send}
+      onError={onError}
+      remoteEcho={false}
+      maskingGeneration="1"
+    />,
+  );
+  expect(input).toHaveAttribute("type", "password");
+  expect(
+    screen.getByText("Draft stays masked until sent or cleared"),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByText("Send"));
+  await waitFor(() => expect(onError).toHaveBeenCalledWith("Queue full"));
+  expect(input).toHaveAttribute("type", "password");
+  expect(input).toHaveValue("synthetic input");
+  fireEvent.click(screen.getByText("Send"));
+  await waitFor(() => expect(input).toHaveValue(""));
+  expect(input).toHaveAttribute("type", "text");
+  fireEvent.change(input, { target: { value: "draft" } });
+  fireEvent.click(screen.getByLabelText("Mask input"));
+  fireEvent.click(screen.getByLabelText("Mask input"));
+  expect(input).toHaveAttribute("type", "password");
+  fireEvent.change(input, { target: { value: "" } });
+  expect(input).toHaveAttribute("type", "text");
+});
+it("remembers a transient server mask and resets only for a new connection", () => {
+  const props = { connected: true, send: vi.fn(), onError: vi.fn() };
+  const view = render(
+    <CommandInput key="1" {...props} maskingGeneration="0" />,
+  );
+  fireEvent.change(screen.getByLabelText("Command"), {
+    target: { value: "draft" },
+  });
+  view.rerender(<CommandInput key="1" {...props} maskingGeneration="2" />);
+  expect(screen.getByLabelText("Command")).toHaveAttribute("type", "password");
+  view.rerender(<CommandInput key="2" {...props} maskingGeneration="0" />);
+  expect(screen.getByLabelText("Command")).toHaveValue("");
+  expect(screen.getByLabelText("Command")).toHaveAttribute("type", "text");
+});
+it("manual force masking survives server disabling and empty drafts", () => {
+  const props = { connected: true, send: vi.fn(), onError: vi.fn() };
+  const view = render(
+    <CommandInput {...props} remoteEcho maskingGeneration="1" />,
+  );
+  fireEvent.click(screen.getByLabelText("Mask input"));
+  view.rerender(<CommandInput {...props} maskingGeneration="1" />);
+  expect(screen.getByLabelText("Command")).toHaveAttribute("type", "password");
+  fireEvent.click(screen.getByLabelText("Mask input"));
+  expect(screen.getByLabelText("Command")).toHaveAttribute("type", "text");
+});

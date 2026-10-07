@@ -437,3 +437,73 @@ async fn full_command_queue_rejects_without_replay() {
     bounded(app.shutdown()).await;
     assert_eq!(bounded(peer.read(&mut [0])).await.unwrap(), 0);
 }
+
+#[tokio::test]
+async fn option_snapshots_bypass_full_output_and_viewports_validate_identity() {
+    bounded(async {
+        let app = Application::new();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let id = app
+            .start(
+                "127.0.0.1",
+                u32::from(listener.local_addr().unwrap().port()),
+            )
+            .unwrap();
+        assert_eq!(
+            app.update_viewport(id, 0, 24),
+            Err(AppError::InvalidViewport)
+        );
+        assert_eq!(
+            app.update_viewport(id, 80, 65536),
+            Err(AppError::InvalidViewport)
+        );
+        app.update_viewport(id, 120, 40).unwrap();
+        let (mut peer, _) = listener.accept().await.unwrap();
+        connected(&app, id).await;
+        peer.write_all(b"\xff\xfd\x1f").await.unwrap();
+        let mut naws = [0; 12];
+        peer.read_exact(&mut naws).await.unwrap();
+        assert_eq!(&naws, b"\xff\xfb\x1f\xff\xfa\x1f\0\x78\0\x28\xff\xf0");
+        peer.write_all(&[7; 4096]).await.unwrap();
+        let connection = app.connection(id).unwrap();
+        while lock(&connection.buffer).events.len() != OUTPUT_EVENTS {
+            tokio::task::yield_now().await;
+        }
+        peer.write_all(b"\xff\xfb\x01\xff\xfc\x01").await.unwrap();
+        while {
+            let options = lock(&connection.buffer).options;
+            options.masking_generation != 1 || options.remote_echo
+        } {
+            tokio::task::yield_now().await;
+        }
+        let snapshot = app.poll(id).await.unwrap();
+        assert_eq!(snapshot.events.len(), POLL_EVENTS);
+        assert_eq!(snapshot.options.masking_generation, 1);
+        assert!(!snapshot.options.remote_echo);
+        let mut replies = [0; 6];
+        peer.read_exact(&mut replies).await.unwrap();
+        assert_eq!(&replies, b"\xff\xfd\x01\xff\xfe\x01");
+        app.update_viewport(id, 255, 255).unwrap();
+        let mut resized = [0; 11];
+        peer.read_exact(&mut resized).await.unwrap();
+        assert_eq!(&resized, b"\xff\xfa\x1f\0\xff\xff\0\xff\xff\xff\xf0");
+        app.disconnect(id).await.unwrap();
+        assert_eq!(peer.read(&mut [0]).await.unwrap(), 0);
+        assert_eq!(app.update_viewport(id, 1, 1), Err(AppError::Closed));
+        let next = app
+            .start(
+                "127.0.0.1",
+                u32::from(listener.local_addr().unwrap().port()),
+            )
+            .unwrap();
+        assert_eq!(app.update_viewport(id, 80, 24), Err(AppError::StaleSession));
+        let (_peer, _) = listener.accept().await.unwrap();
+        connected(&app, next).await;
+        assert_eq!(
+            app.poll(next).await.unwrap().options,
+            OptionSnapshot::default()
+        );
+        app.shutdown().await;
+    })
+    .await;
+}

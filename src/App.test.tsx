@@ -22,6 +22,7 @@ it("never connects automatically and cleans up a start completed after unmount",
     start: vi.fn(() => started.promise),
     poll: vi.fn(),
     send: vi.fn(),
+    viewport: vi.fn().mockResolvedValue(undefined),
     disconnect: vi.fn().mockResolvedValue(undefined),
   };
   const view = render(<App api={api} />);
@@ -42,6 +43,7 @@ it("renders delivered output, resets it for replacement sessions and cancels on 
     start: vi.fn().mockResolvedValueOnce("1").mockResolvedValueOnce("2"),
     poll: vi.fn((id) => (id === "1" ? first.promise : second.promise)),
     send: vi.fn().mockResolvedValue(undefined),
+    viewport: vi.fn().mockResolvedValue(undefined),
     disconnect: vi.fn().mockResolvedValue(undefined),
   };
   const view = render(<App api={api} />);
@@ -54,6 +56,8 @@ it("renders delivered output, resets it for replacement sessions and cancels on 
       message: "Closed.",
       events: [{ type: "text", text: "old prompt" }],
       finished: true,
+      remoteEcho: false,
+      maskingGeneration: "0",
     }),
   );
   expect(screen.getByText("old prompt")).toBeInTheDocument();
@@ -67,6 +71,8 @@ it("renders delivered output, resets it for replacement sessions and cancels on 
       message: "Connected.",
       events: [{ type: "text", text: "new prompt" }],
       finished: true,
+      remoteEcho: false,
+      maskingGeneration: "0",
     }),
   );
   expect(screen.getByLabelText("Command")).toHaveFocus();

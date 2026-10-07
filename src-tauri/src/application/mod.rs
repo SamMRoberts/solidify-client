@@ -4,7 +4,10 @@
 mod endpoint;
 mod worker;
 
-use crate::{protocols::presentation::PresentationEvent, sessions::MAX_SEND_BYTES};
+use crate::{
+    protocols::presentation::PresentationEvent,
+    sessions::{MAX_SEND_BYTES, OptionSnapshot, TerminalSize},
+};
 pub use endpoint::Endpoint;
 use endpoint::Resolver;
 use std::{
@@ -24,6 +27,7 @@ pub const POLL_BYTES: usize = 64 * 1024;
 pub enum AppError {
     InvalidHost,
     InvalidPort,
+    InvalidViewport,
     Busy,
     StaleSession,
     Closed,
@@ -39,6 +43,7 @@ impl fmt::Display for AppError {
             Self::InvalidHost => {
                 "Enter an IP address or ASCII hostname, without a URL or whitespace."
             }
+            Self::InvalidViewport => "Viewport dimensions must be between 1 and 65535.",
             Self::InvalidPort => "Port must be between 1 and 65535.",
             Self::Busy => "A connection is already active or closing.",
             Self::StaleSession => "This connection has been replaced.",
@@ -74,6 +79,7 @@ pub struct Poll {
     pub status: Status,
     pub events: Vec<PresentationEvent>,
     pub finished: bool,
+    pub options: OptionSnapshot,
 }
 
 pub(super) struct SendRequest {
@@ -81,6 +87,7 @@ pub(super) struct SendRequest {
     reply: oneshot::Sender<Result<(), AppError>>,
 }
 pub(super) struct Buffer {
+    options: OptionSnapshot,
     status: Status,
     events: VecDeque<PresentationEvent>,
     bytes: usize,
@@ -93,6 +100,7 @@ pub(super) struct Connection {
     space: Notify,
     done: Notify,
     cancel: watch::Sender<bool>,
+    viewport: watch::Sender<TerminalSize>,
     sends: mpsc::Sender<SendRequest>,
     polling: Arc<tokio::sync::Semaphore>,
 }
@@ -178,10 +186,12 @@ impl Application {
         let id = registry.next;
         registry.next = id.checked_add(1).ok_or(AppError::Busy)?;
         let (cancel, stop) = watch::channel(false);
+        let (viewport, _) = watch::channel(TerminalSize::default());
         let (sends, requests) = mpsc::channel(8);
         let connection = Arc::new(Connection {
             id,
             buffer: Mutex::new(Buffer {
+                options: OptionSnapshot::default(),
                 status: Status {
                     phase: Phase::Resolving,
                     message: "Resolving…".into(),
@@ -194,6 +204,7 @@ impl Application {
             space: Notify::new(),
             done: Notify::new(),
             cancel,
+            viewport,
             sends,
             polling: Arc::new(tokio::sync::Semaphore::new(1)),
         });
@@ -246,12 +257,39 @@ impl Application {
         let result = Poll {
             id,
             status: buffer.status.clone(),
+            options: buffer.options,
             events,
             finished: buffer.finished && buffer.events.is_empty(),
         };
         drop(buffer);
         connection.space.notify_one();
         Ok(result)
+    }
+    /// Latest-only viewport delivery, also accepted during resolution/connection.
+    pub fn update_viewport(&self, id: u64, columns: u32, rows: u32) -> Result<(), AppError> {
+        if !(1..=65535).contains(&columns) || !(1..=65535).contains(&rows) {
+            return Err(AppError::InvalidViewport);
+        }
+        let connection = self.connection(id)?;
+        if matches!(
+            lock(&connection.buffer).status.phase,
+            Phase::Closed | Phase::Disconnecting
+        ) {
+            return Err(AppError::Closed);
+        }
+        let size = TerminalSize {
+            columns: columns as u16,
+            rows: rows as u16,
+        };
+        connection.viewport.send_if_modified(|old| {
+            if *old == size {
+                false
+            } else {
+                *old = size;
+                true
+            }
+        });
+        Ok(())
     }
     pub async fn send_line(&self, id: u64, text: &str) -> Result<(), AppError> {
         if text.len() > MAX_SEND_BYTES - 2 {

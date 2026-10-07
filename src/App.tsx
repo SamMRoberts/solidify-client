@@ -5,7 +5,9 @@ import {
   pollConnection,
   type Bridge,
   type Phase,
+  type ViewportSize,
 } from "./bridge/client";
+import { viewportDelivery } from "./bridge/viewport";
 import { ConnectionBar } from "./components/ConnectionBar";
 import { CommandInput } from "./components/CommandInput";
 import { Transcript } from "./terminal/Transcript";
@@ -22,6 +24,29 @@ export function App({ api = bridge }: { api?: Bridge }) {
     [busy, setBusy] = useState(false),
     [revision, setRevision] = useState(0);
   const [id, setId] = useState<string | null>(null);
+  const [options, setOptions] = useState({
+    remoteEcho: false,
+    maskingGeneration: "0",
+  });
+  const [viewport, setViewport] = useState<ViewportSize>({
+    columns: 80,
+    rows: 24,
+  });
+  const sizes = useRef<ReturnType<typeof viewportDelivery> | null>(null);
+  useEffect(() => {
+    if (!id) return;
+    const delivery = viewportDelivery(api, id, (failure) => {
+      if (current.current === id) setError(failure);
+    });
+    sizes.current = delivery;
+    return () => {
+      delivery.stop();
+      sizes.current = null;
+    };
+  }, [api, id]);
+  useEffect(() => {
+    sizes.current?.update(viewport);
+  }, [id, viewport]);
   const model = useRef(new TranscriptModel());
   const current = useRef<string | null>(null);
   const generation = useRef(0);
@@ -45,12 +70,19 @@ export function App({ api = bridge }: { api?: Bridge }) {
           model.current.apply(value.events);
           setRevision((v) => v + 1);
         }
+        setOptions({
+          remoteEcho: value.remoteEcho,
+          maskingGeneration: value.maskingGeneration,
+        });
+        if (value.phase === "closed" || value.phase === "disconnecting")
+          sizes.current?.stop();
         setPhase(value.phase);
         setStatus(value.message);
         setBusy(value.phase === "closed" && !value.finished);
       },
       (failure) => {
         if (current.current === id) {
+          sizes.current?.stop();
           setError(failure);
           setPhase("closed");
           setStatus("Connection stopped.");
@@ -75,6 +107,7 @@ export function App({ api = bridge }: { api?: Bridge }) {
         return;
       }
       current.current = next;
+      setOptions({ remoteEcho: false, maskingGeneration: "0" });
       model.current = new TranscriptModel();
       setRevision((v) => v + 1);
       setId(next);
@@ -89,6 +122,7 @@ export function App({ api = bridge }: { api?: Bridge }) {
   async function disconnect() {
     const target = current.current;
     if (!target) return;
+    sizes.current?.stop();
     setPhase("disconnecting");
     setStatus("Disconnecting…");
     try {
@@ -122,7 +156,11 @@ export function App({ api = bridge }: { api?: Bridge }) {
         <span role="status">{status}</span>
         <span className="transport">Plain TCP</span>
       </div>
-      <Transcript model={model.current} revision={revision} />
+      <Transcript
+        model={model.current}
+        revision={revision}
+        onViewport={setViewport}
+      />
       {error && (
         <div className="error" role="alert">
           {error}
@@ -131,6 +169,8 @@ export function App({ api = bridge }: { api?: Bridge }) {
       <CommandInput
         key={id ?? "idle"}
         connected={phase === "connected"}
+        remoteEcho={options.remoteEcho}
+        maskingGeneration={options.maskingGeneration}
         send={(text) => api.send(id!, text)}
         onError={(failure) => {
           if (current.current === id) setError(failure);

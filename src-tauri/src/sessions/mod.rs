@@ -6,6 +6,7 @@
 
 mod driver;
 
+pub use crate::protocols::options::{OptionSnapshot, SessionOptions, TerminalSize};
 use crate::protocols::telnet::{DecodeError, TelnetEvent};
 use std::{fmt, io, net::SocketAddr, time::Duration};
 use tokio::{
@@ -132,6 +133,20 @@ pub async fn connect(
     address: SocketAddr,
     config: SessionConfig,
 ) -> Result<(Session, SessionEvents), ConnectError> {
+    connect_with_options(id, address, config, SessionOptions::DenyAll).await
+}
+
+/// Opts into implemented Telnet behavior without changing the default connection API.
+/// Uses the same timeouts, runtime, bounds and cancellation as [`connect`].
+///
+/// # Errors
+/// Returns the same sanitized errors as [`connect`].
+pub async fn connect_with_options(
+    id: SessionId,
+    address: SocketAddr,
+    config: SessionConfig,
+    options: SessionOptions,
+) -> Result<(Session, SessionEvents), ConnectError> {
     if config.connect_timeout.is_zero() {
         return Err(ConnectError::InvalidConnectTimeout);
     }
@@ -139,12 +154,14 @@ pub async fn connect(
         return Err(ConnectError::InvalidWriteTimeout);
     }
     let stream = driver::connect_with(TcpStream::connect(address), config.connect_timeout).await?;
-    Ok(driver::start(id, stream, config))
+    Ok(driver::start_with_options(id, stream, config, options))
 }
 
 /// Owning, non-cloneable session control. Dropping it signals asynchronous teardown.
 pub struct Session {
     commands: mpsc::Sender<Vec<u8>>,
+    viewport: watch::Sender<TerminalSize>,
+    options: watch::Receiver<OptionSnapshot>,
     stop: watch::Sender<Option<CloseReason>>,
     status: watch::Receiver<SessionStatus>,
     task: Option<JoinHandle<()>>,
@@ -152,6 +169,29 @@ pub struct Session {
 }
 
 impl Session {
+    /// Subscribes to effective option state without consuming raw Telnet events.
+    pub fn subscribe_options(&self) -> watch::Receiver<OptionSnapshot> {
+        self.options.clone()
+    }
+    /// Replaces the pending viewport; intermediate sizes need not reach the wire.
+    ///
+    /// # Errors
+    /// Returns Closed once cancellation or closure has been observed.
+    pub fn update_viewport(&self, size: TerminalSize) -> Result<(), SendError> {
+        if self.stop.borrow().is_some() || matches!(self.status().state, SessionState::Closed(_)) {
+            return Err(SendError::Closed);
+        }
+        self.viewport.send_if_modified(|old| {
+            if *old == size {
+                false
+            } else {
+                *old = size;
+                true
+            }
+        });
+        Ok(())
+    }
+
     /// Enqueues raw data, without newline conversion. Success means accepted only.
     ///
     /// # Errors

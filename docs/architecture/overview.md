@@ -10,7 +10,7 @@ Caller-provided byte slices pass through `protocols::telnet::TelnetDecoder` to a
 
 The caller may pass negotiation events to a separate `TelnetNegotiator`, which owns fixed local/remote option state and immutable allowlists. Its returned commands convert into existing events for `encode`, which emits bounded borrowed wire chunks. Direct users of the wire core preserve command/chunk order, own delivery failures, and handle non-negotiation events. See the [negotiation contract](protocols.md#implemented-option-negotiation) before integrating option behavior.
 
-The `sessions` module connects numeric socket addresses using the caller's Tokio runtime. A coordinator owns reading, protocol state, command processing, and bounded event delivery; a writer serializes encoded frames. Connected sessions use default-deny negotiation and forward every decoded event as untrusted bytes. Cancellation and terminal status bypass data queues; awaited shutdown joins both workers. See the [session contract](sessions.md) for bounds and lifecycle details.
+The `sessions` module connects numeric socket addresses using the caller's Tokio runtime. A coordinator owns reading, protocol state, command processing, and bounded event delivery; a writer serializes encoded frames. The original connect API uses default-deny negotiation; desktop sessions opt into passive TTYPE/NAWS, remote ECHO, and SGA and forward every decoded event as untrusted bytes. Cancellation and terminal status bypass data queues; awaited shutdown joins both workers. See the [session contract](sessions.md) for bounds and lifecycle details.
 
 Callers may pass only received `TelnetEvent::Data` into a connection-local
 `protocols::presentation::PresentationDecoder`. It synchronously emits bounded
@@ -31,14 +31,14 @@ transcript renderer above these unchanged library APIs.
 | Frontend bridge | Centralized native calls, event subscriptions, and error presentation |
 | Backend commands | Validated application entrypoints with narrow capabilities |
 | Application coordinator | Implemented hostname resolution, connection IDs, decoder composition, bounded polling, command acceptance, and supervised cleanup |
-| Sessions | Implemented numeric TCP connections, task ownership, default-deny negotiation, bounded queues, and teardown |
-| Protocols | Telnet decoding, encoding, generic negotiation, and UTF-8/basic ANSI presentation decoding implemented independently of UI/networking; option-specific behavior and other extensions remain planned |
+| Sessions | Implemented numeric TCP connections, task ownership, default-deny and opt-in MUD negotiation, bounded queues, and teardown |
+| Protocols | Telnet decoding, encoding, generic negotiation, and UTF-8/basic ANSI presentation decoding implemented independently of UI/networking; TTYPE/NAWS/ECHO/SGA are implemented; other extensions remain planned |
 | Plugins | Compatibility, capabilities, callbacks, isolation, and lifecycle |
 | Storage | User settings, profiles, plugin namespaces, and safe persistence |
 
 ## Application data flow
 
-User input passes from the terminal through the frontend bridge to validated backend commands. The session owns transport and outbound ordering. Incoming bytes pass through Telnet framing and default-deny negotiation; only data enters UTF-8/basic ANSI decoding. The frontend polls bounded structured output and renders literal text with typed style classes. Option-specific extensions and markup interpretation remain deferred.
+User input passes from the terminal through the frontend bridge to validated backend commands. The session owns transport and outbound ordering. Incoming bytes pass through Telnet framing and the supported option profile; only data enters UTF-8/basic ANSI decoding. The frontend polls bounded structured output and renders literal text with typed style classes. Other option extensions and markup interpretation remain deferred.
 
 This is conceptual ordering, not a mandated parser API: Telnet subnegotiations and embedded display extensions need different handling. The implementation must retain stream order and partial sequence state.
 

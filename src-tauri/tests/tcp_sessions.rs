@@ -542,3 +542,58 @@ async fn refused_connection_returns_sanitized_error() {
         })
     ));
 }
+
+#[tokio::test]
+async fn opt_in_options_preserve_default_sessions_and_fragmented_presentation() {
+    use solidify_client::sessions::{SessionOptions, TerminalSize, connect_with_options};
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let (mut enabled, mut events) = bounded(connect_with_options(
+        SessionId(100),
+        listener.local_addr().unwrap(),
+        SessionConfig::default(),
+        SessionOptions::MudClient {
+            size: TerminalSize::default(),
+        },
+    ))
+    .await
+    .unwrap();
+    let (mut peer, _) = bounded(listener.accept()).await.unwrap();
+    let (mut original, _original_events, mut original_peer) = accept_session(&listener, 101).await;
+    let mut decoder = PresentationDecoder::new();
+    let mut output = Vec::new();
+    for fragment in [
+        b"\xf0\x9f\xff".as_slice(),
+        b"\xfd\x18\xff\xfa\x18",
+        b"\x01\xff\xf0\x8c\x8d> ",
+    ] {
+        bounded(peer.write_all(fragment)).await.unwrap();
+        // No incomplete Telnet framing is allowed at a NOP boundary; this split
+        // remains deliberately unobserved until the complete exchange below.
+    }
+    bounded(peer.write_all(&[255, 241])).await.unwrap();
+    bounded(async {
+        loop {
+            match events.recv().await.unwrap().event {
+                TelnetEvent::Data(data) => decoder
+                    .feed(&data, |event| collect_presentation(&mut output, event))
+                    .unwrap(),
+                TelnetEvent::Command(241) => break,
+                _ => {}
+            }
+        }
+    })
+    .await;
+    assert_eq!(output, [PresentationEvent::Text("🌍> ".into())]);
+    bytes(&mut peer, b"\xff\xfb\x18\xff\xfa\x18\0SOLIDIFY\xff\xf0").await;
+    bounded(original_peer.write_all(b"\xff\xfd\x18\xff\xfb\x01"))
+        .await
+        .unwrap();
+    bytes(&mut original_peer, b"\xff\xfc\x18\xff\xfe\x01").await;
+    assert!(enabled.subscribe_options().borrow().terminal_type);
+    assert!(!original.subscribe_options().borrow().terminal_type);
+    assert!(!original.subscribe_options().borrow().remote_echo);
+    bounded(enabled.disconnect()).await;
+    bounded(original.disconnect()).await;
+    eof(&mut peer).await;
+    eof(&mut original_peer).await;
+}

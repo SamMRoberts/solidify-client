@@ -4,7 +4,7 @@
 
 `solidify_client::sessions` connects the existing [Telnet wire core](protocols.md) to TCP using pinned [Tokio 1.53.2](https://docs.rs/tokio/1.53.2/tokio/). It is a library on the caller's runtime, which must have I/O and timers enabled and remain running through cleanup. No runtime or global session manager is created internally. Rust interfaces are initial internal contracts, not stable plugin APIs.
 
-Only numeric `SocketAddr` endpoints are accepted. The session itself performs no text/ANSI decoding; callers may compose it with the independent [presentation decoder](protocols.md#presentation-decoder-contract). This module has no DNS, TLS, reconnect, retry/replay, idle timeout, half-open operation, option handler, persistence, or UI. The separate [application layer](desktop.md) adds DNS, decoding composition, and Tauri/frontend ownership without changing this API. Local tests do not establish public MUD compatibility or Windows/Linux runtime acceptance.
+Only numeric `SocketAddr` endpoints are accepted. The session itself performs no text/ANSI decoding; callers may compose it with the independent [presentation decoder](protocols.md#presentation-decoder-contract). This module has no DNS, TLS, reconnect, retry/replay, idle timeout, half-open operation, arbitrary option handlers, persistence, or UI. The separate [application layer](desktop.md) adds DNS, decoding composition, and Tauri/frontend ownership without changing this API. Local tests do not establish public MUD compatibility or Windows/Linux runtime acceptance.
 
 ## Public API
 
@@ -23,9 +23,9 @@ Both public owners are non-cloneable. Dropping either signals cancellation; `Dro
 
 ## Ordering and negotiation
 
-One coordinator owns the read half, decoder, default-deny negotiator, and application command processing. A separate writer owns the write half. All application data and generated refusals enter the same FIFO writer queue in coordinator processing order. A command racing with a socket read has no priority guarantee; once processed, their resulting frames cannot interleave. A caller must not equate a `try_send_data` return with completed processing or delivery.
+One coordinator owns the read half, decoder, option handler with one Q-method negotiator, and application command processing. A separate writer owns the write half. All application data and generated option responses enter the same FIFO writer queue in coordinator processing order. A command racing with a socket read has no priority guarantee; once processed, their resulting frames cannot interleave. A caller must not equate a `try_send_data` return with completed processing or delivery.
 
-Incoming `WILL` generates `DONT`, and `DO` generates `WONT`, according to the existing Q method. Negative acknowledgments do not produce reply loops. There is no startup negotiation or public option-enabling API. Negotiation and subnegotiation events are still forwarded, even for unsupported options, and all received data remains untrusted. A refusal is enqueued before its corresponding inbound event is delivered. Permitting an option in the standalone negotiator does not implement its semantics or change connected-session policy.
+For the unchanged default-deny API, incoming `WILL` generates `DONT`, and `DO` generates `WONT`, according to the existing Q method. Negative acknowledgments do not produce reply loops. Neither profile generates startup negotiation. `connect_with_options` offers the implemented MUD profile alongside default-deny. Negotiation and subnegotiation events are still forwarded, even for unsupported options, and all received data remains untrusted. A response is enqueued before its corresponding inbound event is delivered. Permitting an option in the standalone negotiator does not implement its semantics or change connected-session policy.
 
 Data uses the existing encoder, doubling IAC and preserving every other byte without newline normalization or automatic terminators. The writer tracks each frame's offset across short writes. Cancellation or failure after a partial write ends the connection; no frame is restarted. This follows [Tokio's cancellation guidance](https://docs.rs/tokio/1.53.2/tokio/macro.select.html#cancellation-safety).
 
@@ -56,3 +56,24 @@ Exactly one terminal status is published. Normal termination cancels the other w
 Already-enqueued inbound events remain drainable. Undelivered events from the current batch, queued commands, and unsent frames may be discarded on termination, including a batch containing a framing error. Failure does not replay bytes or roll back bytes already sent to the peer. Racing terminal causes have no guaranteed precedence; the published reason remains final.
 
 See [testing evidence and limits](../development/testing.md#implemented-session-checks) and [setup commands](../development/setup.md#library-commands).
+
+## Opt-in terminal option profile
+
+`connect_with_options(id, address, config, SessionOptions::MudClient { size })`
+shares the original connection and cleanup contracts. `connect` still chooses
+`DenyAll`; existing `SessionConfig` fields and raw event delivery are unchanged.
+
+`Session::subscribe_options()` returns a Tokio watch receiver of the fixed
+`OptionSnapshot`: TTYPE, NAWS, remote ECHO, local/remote SGA, and masking generation.
+The coordinator publishes changes before awaiting response/event queue capacity.
+A subscriber can therefore observe processed negotiations despite downstream
+pressure. Unread negotiations behind transport backpressure remain unread.
+The final snapshot remains available after closure; a new session starts at zero.
+
+`Session::update_viewport(TerminalSize)` replaces one watch value and returns
+`SendError::Closed` after observed cancellation/closure. Intermediate sizes may
+coalesce; success is not wire delivery. A blocked coordinator processes the latest
+size when it resumes. Responses use the existing FIFO writer with the same write
+deadline and partial-write termination rules. One receive stages at most two
+responses (a three-byte acknowledgment and at most thirteen-byte NAWS frame);
+TTYPE frames are fourteen bytes. No new unbounded queues are introduced.

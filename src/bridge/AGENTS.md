@@ -2,7 +2,7 @@
 
 ## Scope
 
-Own the frontend boundary for native commands and event subscriptions. These instructions supplement ancestor `AGENTS.md` files for this subtree. Four native invocations and a single cancellable poll chain are implemented; mocked bridges belong only in tests.
+Own the frontend boundary for native commands and event subscriptions. These instructions supplement ancestor `AGENTS.md` files for this subtree. Five native invocations, a single cancellable poll chain, and latest-only viewport delivery are implemented; mocked bridges belong only in tests.
 
 ## Working guidance
 

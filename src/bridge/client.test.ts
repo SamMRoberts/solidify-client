@@ -6,11 +6,14 @@ const snapshot: Snapshot = {
   message: "Connected.",
   events: [],
   finished: true,
+  remoteEcho: false,
+  maskingGeneration: "0",
 };
 function api(poll: Bridge["poll"]): Bridge {
   return {
     start: vi.fn(),
     send: vi.fn(),
+    viewport: vi.fn().mockResolvedValue(undefined),
     disconnect: vi.fn().mockResolvedValue(undefined),
     poll,
   };

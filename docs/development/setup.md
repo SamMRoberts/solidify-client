@@ -86,7 +86,8 @@ files and `cargo fmt` on changed Rust files before checking formatting.
 2. Send `styles`, `unicode`, `controls`, and `markup`. Check basic colors/style
    flags, whole grapheme deletion, CR replacement, eight-column tabs, and literal
    angle-bracket markup. Try Enter and Send; verify the accepted draft clears.
-3. Toggle **Mask input**, send a harmless test command, and toggle it off. No local
+3. Toggle **Mask input**, send a harmless test command, and toggle it off. A nonempty
+   masked draft stays masked until sent or cleared. No local
    command echo or history should appear. Send an empty line; preserve ordinary
    spaces in a normal command. Do not use real credentials for this demo.
 4. Send `burst`, scroll upward, then send `help`. The viewport should stay in
@@ -154,3 +155,38 @@ Read [AGENTS.md](../../AGENTS.md) and applicable directory guides. Review relati
 links, headings, instruction consistency, whitespace, and the complete diff,
 including new files. Follow [testing guidance](testing.md) when reporting separate
 automated, browser, native, and live-server evidence.
+
+## Telnet compatibility checklist
+
+Run `npm run demo` and `npm run tauri:dev` in separate terminals as above.
+If port 4000 is occupied, use `npm run demo -- --port 4001` and enter port 4001.
+Use synthetic input only; the demo never requires credentials.
+
+1. Connect to `localhost` and send `protocol`: expect `Terminal: SOLIDIFY` and
+   nonzero columns/rows. Resize the native window, wait briefly, and send
+   `protocol` again; dimensions should follow the transcript's usable area.
+2. Send `mask`: expect **Server-requested masking** and an obscured command field.
+   Enter a harmless synthetic response and send it. Expect a fixed discarded-input
+   acknowledgment, no echo of your response, and normal input after the server
+   disables ECHO. Manual **Mask input** can keep masking enabled.
+3. Send `options-off`, then `protocol`: identity and viewport should be unavailable.
+   Resize while disabled, send `options-on`, then `protocol`; expect the identity
+   and latest dimensions to return. Ordinary commands remain line-based throughout.
+4. Disconnect/reconnect: expect fresh output and normal input. Check `malformed`
+   for a sanitized decoder error and reconnect again. Send `burst` and close the
+   window during output; the process should exit and the demo accept a fresh client.
+
+Protocol/state regression tests additionally verify a server disabling masking
+with a nonempty draft, failed-send retention, transient ECHO cycles between polls,
+queue pressure, stale IDs, and cleanup. These automated checks are distinct from
+manual browser/native acceptance.
+
+Focused option checks:
+
+```sh
+cargo test --manifest-path src-tauri/Cargo.toml --locked --offline protocols::options
+cargo test --manifest-path src-tauri/Cargo.toml --locked --offline option
+cargo test --manifest-path src-tauri/Cargo.toml --locked --offline negotiated_state
+cargo test --manifest-path src-tauri/Cargo.toml --locked --offline --example demo_server
+npm test -- src/bridge/viewport.test.ts src/components/components.test.tsx
+```

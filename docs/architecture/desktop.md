@@ -15,7 +15,7 @@ without Tauri or a native webview.
 `application::Application` starts work on the caller's Tokio runtime, assigns
 monotonically increasing IDs, and rejects concurrent starts until the previous
 worker has finished. IDs cross IPC as decimal strings to avoid JavaScript number
-precision loss. Stale IDs cannot poll, send, or disconnect a replacement.
+precision loss. Stale IDs cannot poll, send, resize, or disconnect a replacement.
 A fresh connection receives a new decoder and transcript. There is no automatic
 connection, reconnection, command retry, or replay.
 
@@ -36,8 +36,8 @@ busy message; numeric connections remain available. Shutdown joins session work
 without waiting indefinitely for OS resolution.
 
 The coordinator passes only Telnet data into a connection-local presentation
-decoder. Negotiations remain owned by the default-deny session library; other
-Telnet events do not interrupt presentation state. After EOF it drains session
+decoder. Negotiations remain owned by the session library using its MUD profile;
+other Telnet events do not interrupt presentation state. After EOF it drains session
 events and finishes decoding. Presentation failure preserves preceding output,
 reports only the typed error description, and disconnects the session.
 A supervisor retrieves the owned session even on an unexpected task exit and
@@ -70,9 +70,9 @@ user cancellations do not fabricate EOF text or promise to drain unseen data.
 
 ## Commands and trust boundary
 
-Four commands exist: `start_connection`, `poll_connection`, `send_line`, and
-`disconnect`. Every command verifies the `main` window and bundled application
-origin; debug builds also permit the configured localhost Vite origin. Dedicated
+Five commands exist: `start_connection`, `poll_connection`, `send_line`,
+`update_viewport`, and `disconnect`. Every command verifies the `main` window and
+bundled application origin; debug builds also permit the configured localhost Vite origin. Dedicated
 DTOs serialize text, style snapshots, controls, statuses and IDs without adding
 serialization to protocol-domain types. Error messages contain no command text,
 transcript, hostname, raw OS error, or credentials.
@@ -88,8 +88,8 @@ and [capability boundary](https://v2.tauri.app/security/capabilities/).
 Text is rendered as React text nodes with classes derived from typed styles.
 It is never HTML, a navigable link, or executable markup. The client implements
 no input/transcript logging, local echo, history, credential storage or profiles.
-The manual mask toggle only obscures the command field visually; transport is
-plain TCP and automatic password detection is deferred.
+Automatic and manual masking obscure the command field visually; transport
+remains plain TCP. ECHO is a server convention, not password-content detection.
 
 ## Transcript and input behavior
 
@@ -117,9 +117,37 @@ The draft clears only after the session queue accepts it; acceptance is not a
 network delivery acknowledgement. Queue-full and validation failures retain the
 draft. Nothing is retried automatically.
 
+## Viewport reporting and input masking
+
+The desktop uses the passive MUD option profile. Poll snapshots add `remoteEcho`
+and decimal-string `maskingGeneration`; these metadata bypass the transcript
+queue and wake an empty poll. A watch subscription propagates processed state even
+while presentation staging is full. Network backpressure can still delay reading
+a later negotiation. Only Telnet data is passed to presentation decoding.
+
+The main-window `update_viewport(sessionId, columns, rows)` command validates the
+current ID and integer dimensions in 1–65535. It accepts updates while connecting,
+rejects closed/disconnecting sessions, and keeps only the latest size. The frontend
+measures transcript client dimensions minus padding (client dimensions exclude
+scrollbars), an inherited monospace probe, and computed line height. It floors
+and clamps character counts, using 80×24 before a valid measurement. These are
+approximate character dimensions, not Unicode terminal cell calculations.
+ResizeObserver includes font metrics; updates debounce for 100 ms, skip unchanged
+sizes, and retain one latest pending size during one outstanding invocation.
+Disposal ignores stale completions; an active bridge failure requests disconnect.
+
+Remote ECHO, manual **Mask input**, or a protected nonempty draft makes the field
+a password input. A changed generation protects an existing draft even when ECHO
+has already turned off between polls. Once masked, a nonempty draft stays masked
+until cleared or accepted for sending. Unchecking the manual control or server
+WONT ECHO does not reveal it. Failed sends keep the draft and its protection.
+The compact reason distinguishes a server request from retained draft protection.
+New connections reset the generation, manual control, and draft; no input is
+logged, locally echoed, stored, or automatically replayed.
+
 ## Deferred work
 
-Multiple sessions, saved profiles, TLS, option handlers, automatic password mode,
+Multiple sessions, saved profiles, TLS, other option handlers,
 persistence, plugins, extended colors, cursor addressing, screen editing,
 terminal emulation, installers, signing, and CI remain deferred. The local demo
 and macOS checks do not establish Windows/Linux or public-MUD compatibility.

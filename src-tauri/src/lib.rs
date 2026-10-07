@@ -5,7 +5,8 @@
 //! UTF-8/basic ANSI presentation decoding, plus a bounded single-connection
 //! application coordinator. The optional desktop binary initializes Tauri and
 //! hosts the React transcript renderer; protocol APIs remain UI-independent.
-//! Specific option behavior and full terminal emulation are deferred.
+//! An opt-in profile implements passive TTYPE/NAWS, remote ECHO and SGA.
+//! Other option extensions and full terminal emulation are deferred.
 //! Its Rust interfaces are internal project contracts, not a stable plugin API.
 
 #![forbid(unsafe_code)]

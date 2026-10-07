@@ -2,7 +2,7 @@
 
 ## Current status
 
-solidify currently provides Telnet decoding/encoding, configurable Q-method negotiation, bounded Tokio TCP sessions, and independent UTF-8/basic ANSI presentation decoding, with unit, in-memory peer, and loopback integration tests. A Tauri 2 + React/TypeScript desktop client adds one connection, hostname resolution, bounded styled transcripts, command entry, and a local demo. Option-specific behavior, plugins, persistence, installers, CI and a published documentation site remain deferred. Directory guides distinguish the implemented core from reserved subsystems.
+solidify currently provides Telnet decoding/encoding, configurable Q-method negotiation, bounded Tokio TCP sessions, and independent UTF-8/basic ANSI presentation decoding, with unit, in-memory peer, and loopback integration tests. A Tauri 2 + React/TypeScript desktop client adds one connection, hostname resolution, bounded styled transcripts, command entry, and a local demo. TTYPE/NAWS, remote ECHO masking, and SGA are implemented through an opt-in session profile used by the desktop. Other option behavior, plugins, persistence, installers, CI and a published documentation site remain deferred. Directory guides distinguish the implemented core from reserved subsystems.
 
 ## Architecture and extensions
 

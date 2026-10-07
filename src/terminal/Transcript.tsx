@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import type { Style } from "../bridge/client";
+import { observeViewport } from "./viewport";
+import type { ViewportSize, Style } from "../bridge/client";
 import type { TranscriptModel } from "./model";
 
 function classes(style: Style) {
@@ -27,11 +28,17 @@ export function nearBottom(height: number, top: number, viewport: number) {
 export function Transcript({
   model,
   revision,
+  onViewport,
 }: {
   model: TranscriptModel;
   revision: number;
+  onViewport?: (size: ViewportSize) => void;
 }) {
   const viewport = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (viewport.current && onViewport)
+      return observeViewport(viewport.current, onViewport);
+  }, [onViewport]);
   const follow = useRef(true);
   const anchor = useRef<{ id: string; offset: number } | null>(null);
   const [unread, setUnread] = useState(false);

@@ -18,7 +18,7 @@ Colocated encoder tests check exact wire bytes, all-byte escaping, every command
 
 `src-tauri/tests/telnet_wire.rs` connects two synthetic peers through the public encoder → decoder → negotiator APIs. Tests cover mutual acceptance, asymmetric refusal, simultaneous complementary requests, queued reversals/cancellation, and delivery of other events to the caller. Message queues are capped at 32 entries and each settling phase at 64 exchanges; tests assert exact exchange counts, final states, and quiescence. No server or private transcript is involved.
 
-Local automated verification is on macOS with Rust/Cargo 1.99.0. Windows/Linux execution, fuzzing, and live-server compatibility remain unverified. Native macOS acceptance is recorded separately below. Protocol tests establish generic wire behavior; session tests add deterministic I/O and local TCP evidence. Separate presentation tests establish the documented text/style decoding subset. Protocol/library checks do not establish option-specific implementations, rendering, or public-server compatibility; frontend and native rendering checks are separate.
+Local automated verification is on macOS with Rust/Cargo 1.99.0. Windows/Linux execution, fuzzing, and live-server compatibility remain unverified. Native macOS acceptance is recorded separately below. Protocol tests establish generic wire behavior; session tests add deterministic I/O and local TCP evidence. Separate presentation tests establish the documented text/style decoding subset. Option-profile tests establish only the implemented TTYPE/NAWS/ECHO/SGA subset. Protocol/library checks do not establish rendering or public-server compatibility; frontend and native rendering checks are separate.
 
 ## Implemented presentation checks
 
@@ -73,7 +73,7 @@ Use the [configured desktop checks](setup.md#desktop-and-frontend-commands) and
 local transport observations separately. The demo is development-only and uses
 synthetic text, one active client, bounded input, and loopback TCP.
 
-## Desktop acceptance evidence — 2026-10-06
+## Fifth-slice desktop acceptance evidence — 2026-10-06
 
 - **Automated macOS:** 106 library tests passed; the desktop-feature suite passed
   107 tests, including the command-origin check. All original 94 tests and their
@@ -97,6 +97,39 @@ synthetic text, one active client, bounded input, and loopback TCP.
   option-specific behavior, persistence, and plugins. No live credentials or
   captured server transcripts were used. These observations are slice acceptance,
   not a cross-platform or full-terminal compatibility claim.
+
+## Sixth-slice verification — 2026-10-06
+
+- **Automated macOS:** 115 library-suite tests and 116 desktop-feature tests passed,
+  retaining all prior tests. The additional demo example test passed through real
+  loopback TCP and the application coordinator. All 23 frontend tests passed.
+  Formatting, type checking, Clippy with warnings denied, library/desktop builds,
+  API documentation, the production Tauri build, and whitespace/diff checks passed.
+  All 99 relative Markdown links and heading targets passed inspection. No
+  dependencies changed.
+- **Option and loopback evidence:** tests cover exact TTYPE/NAWS responses, IAC
+  escaping, fragmented Unicode with negotiation, direction refusal, duplicate
+  negotiation, disable/re-enable, independent sessions, latest viewport delivery,
+  processed masking state during full output queues, stalled-writer cancellation,
+  stale IDs, and shutdown. The demo test checks identity, dimensions, masking
+  transitions, discarded synthetic input, re-enable after resize, and clean EOF.
+- **Browser:** Playwright Chromium checked `http://localhost:1420` at 1100×760 and
+  720×480. Page identity, nonblank layout, no error overlay, no console errors,
+  manual masking, and no horizontal overflow passed. A temporary test-only IPC
+  fixture additionally exercised automatic masking, protection after server reset,
+  retained drafts after synthetic queue rejection, successful-send clearing, and
+  measured viewport updates. The masked/error layout also fit 720×480. These are
+  rendering checks, not native IPC or TCP evidence. The Browser plugin was absent;
+  Chromium required execution outside the sandbox after a macOS permission error.
+- **Native limitation:** `npm run tauri:dev` started Vite and the native executable,
+  but macOS UI automation reported a locked Mac on both attempts. Native window
+  interaction, IPC-driven masking/resizing, reconnect, and window-close cleanup
+  remain unverified for this slice. The earlier native record above does not
+  establish acceptance of these changes. Use the [compatibility checklist](setup.md#telnet-compatibility-checklist)
+  after unlocking the desktop. The development app/server processes started for
+  this check were stopped; process termination is not window-close acceptance.
+- **Unverified:** Windows/Linux runtime, public MUDs, and all deferred protocols.
+  No live-server connections or real credentials were used.
 
 ## Verification layers
 

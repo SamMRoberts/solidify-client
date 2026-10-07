@@ -2,7 +2,7 @@
 
 ## Status
 
-Byte-level Telnet decoding/encoding, configurable Q-method negotiation, and independent bounded UTF-8/basic ANSI presentation decoding are implemented. Bounded TCP transport is implemented separately in [sessions](sessions.md); a separate [desktop layer](desktop.md) renders basic styled text and line controls. Option-specific behavior and other extension interpretation remain planned. The references below establish wire syntax and negotiation behavior, not a claim of complete Telnet or MUD compatibility.
+Byte-level Telnet decoding/encoding, configurable Q-method negotiation, and independent bounded UTF-8/basic ANSI presentation decoding are implemented. Bounded TCP transport is implemented separately in [sessions](sessions.md); a separate [desktop layer](desktop.md) renders basic styled text and line controls. Passive TTYPE/NAWS, remote ECHO, and SGA behavior is implemented in the separate option handler below; other extensions remain planned. The references below establish wire syntax and negotiation behavior, not a claim of complete Telnet or MUD compatibility.
 
 ## Implemented Telnet framing
 
@@ -126,13 +126,13 @@ The state machine follows the symmetric Q method in [RFC 1143, section 7](https:
 
 `NegotiationCommand { verb, option }` converts to `TelnetEvent` using `Into`/`From`, then passes to `encode`. Construction and reset emit no startup negotiation. There are no reply queues, timers, retries, or automatic re-requests after refusals. Unexpected acknowledgments follow RFC 1143's recovery transitions, without logging transcripts or failing the decoder.
 
-Process received negotiation events in order and deliver returned commands in operation order alongside other outgoing events. Negotiator state advances when a command is returned, not on successful delivery. Dropping a command and continuing can desynchronize the peers: the session owner must tear down/reset on output failure and manage bounded queues. The implemented TCP session layer provides these guarantees using default-deny policy. Other decoded events remain the caller's responsibility; these modules do not activate subnegotiation handlers or execute commands.
+Process received negotiation events in order and deliver returned commands in operation order alongside other outgoing events. Negotiator state advances when a command is returned, not on successful delivery. Dropping a command and continuing can desynchronize the peers: the session owner must tear down/reset on output failure and manage bounded queues. The implemented TCP session layer provides these guarantees using default-deny or the explicit implemented-options profile. Other decoded events remain the caller's responsibility; these modules do not activate subnegotiation handlers or execute commands.
 
 ## Protocol roadmap
 
 | Protocol | Intended capability | Reference |
 |---|---|---|
-| Telnet | Decoding, encoding, generic negotiation, and separate TCP sessions implemented; option-specific behavior planned | [RFC 854](https://www.rfc-editor.org/rfc/rfc854), [RFC 855](https://www.rfc-editor.org/rfc/rfc855), [RFC 1143](https://www.rfc-editor.org/rfc/rfc1143) |
+| Telnet | Decoding, encoding, generic negotiation, and separate TCP sessions implemented; TTYPE/NAWS/ECHO/SGA implemented in an opt-in profile | [RFC 854](https://www.rfc-editor.org/rfc/rfc854), [RFC 855](https://www.rfc-editor.org/rfc/rfc855), [RFC 1143](https://www.rfc-editor.org/rfc/rfc1143) |
 | UTF-8 and ANSI controls | Bounded text decoding, basic SGR, and nonexecuting control events implemented; basic desktop rendering implemented separately; other styles deferred | [RFC 3629](https://www.rfc-editor.org/rfc/rfc3629), [ECMA-48](https://ecma-international.org/publications-and-standards/standards/ecma-48/) |
 | MXP | Supported markup converted into safe client display/actions | [Zugg Software MXP specification](https://www.zuggsoft.com/zmud/mxp.htm) |
 | GMCP | Negotiated structured messages and documented package handling | [Aardwolf GMCP documentation](https://www.aardwolf.com/wiki/index.php/Clients/GMCP), a server-specific reference |
@@ -154,3 +154,33 @@ Process received negotiation events in order and deliver returned commands in op
 For each implemented feature, use deterministic inputs covering valid, unknown, truncated, repeated, interleaved, and oversized messages. Feed equivalent streams with different chunk boundaries and compare observable results. Reset state across disconnects and confirm no state crosses sessions.
 
 Document unsupported variants and capture provenance in the [fixture guide](../../resources/fixtures/README.md). Public-server acceptance, when explicitly requested, supplements local tests; it does not establish universal compatibility. See [testing](../development/testing.md).
+
+## Implemented terminal options
+
+`protocols::options::TerminalOptions` owns one existing Q-method negotiator,
+a `TerminalSize`, and a masking generation. It is independent of Tokio and has
+no output queue. `SessionOptions::DenyAll` preserves the original refusal policy;
+`MudClient { size }` permits local TTYPE/NAWS, remote ECHO, and SGA both ways.
+Construction emits nothing. `receive` emits at most two ordered owned events;
+`set_size` emits at most one. Responses must be delivered or the connection closed.
+
+- TTYPE responds only to exactly `SEND` (`[1]`) while enabled, with `IS SOLIDIFY`.
+  Repeated requests return the same single identity. No terminal emulation, MTTS,
+  or extended-color support is advertised. See [RFC 1091](https://www.rfc-editor.org/info/rfc1091/).
+- NAWS emits four network-order bytes (columns, rows) when enabled and after
+  changed dimensions. The encoder escapes IAC. Disabled updates replace the cached
+  size; re-enabling sends the latest value. The protocol type accepts zero as
+  unknown; the desktop validates nonzero dimensions. See [RFC 1073](https://www.rfc-editor.org/info/rfc1073/).
+- Effective remote ECHO increments a `u64` generation on every disabled-to-enabled
+  transition (saturating at its maximum). This preserves transient enables for
+  polling consumers. ECHO itself specifies echo ownership, not passwords; the
+  desktop adopts the [MUD masking convention](https://wiki.mudlet.org/w/Manual%3ATechnical_Manual/en#ECHO_.28Password_Masking.29).
+  See [RFC 857](https://www.rfc-editor.org/info/rfc857/).
+- SGA is tracked independently in both directions. Neither ECHO nor SGA changes
+  line-based sends, newline handling, or local echo. See [RFC 858](https://www.rfc-editor.org/info/rfc858/).
+
+Unsupported directions/options are refused through the Q method. Unsupported,
+malformed, or premature option payloads are ignored without retaining their
+contents. Telnet framing errors still follow the decoder's strict failure policy.
+Each session creates fresh option state; subscribers never interpret raw payloads
+as frontend actions.

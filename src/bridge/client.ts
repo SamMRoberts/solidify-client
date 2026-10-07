@@ -37,17 +37,26 @@ export interface Snapshot {
   message: string;
   events: Output[];
   finished: boolean;
+  remoteEcho: boolean;
+  maskingGeneration: string;
+}
+export interface ViewportSize {
+  columns: number;
+  rows: number;
 }
 export interface Bridge {
   start(host: string, port: number): Promise<string>;
   poll(id: string): Promise<Snapshot>;
   send(id: string, text: string): Promise<void>;
   disconnect(id: string): Promise<void>;
+  viewport(id: string, size: ViewportSize): Promise<void>;
 }
 export const bridge: Bridge = {
   start: (host, port) => invoke("start_connection", { host, port }),
   poll: (sessionId) => invoke("poll_connection", { sessionId }),
   send: (sessionId, text) => invoke("send_line", { sessionId, text }),
+  viewport: (sessionId, size) =>
+    invoke("update_viewport", { sessionId, ...size }),
   disconnect: (sessionId) => invoke("disconnect", { sessionId }),
 };
 export function message(error: unknown): string {

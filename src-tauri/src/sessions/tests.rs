@@ -546,3 +546,74 @@ async fn terminal_status_is_published_once_and_does_not_wait_for_event_drain() {
     assert!(bounded(events.recv()).await.is_none());
     assert_eq!(reason(session.disconnect().await), CloseReason::PeerEof);
 }
+
+#[tokio::test]
+async fn option_responses_order_escaping_and_latest_viewport() {
+    let (io, probe) = TestIo::new(
+        vec![
+            255, 253, 24, 255, 250, 24, 1, 255, 240, 255, 253, 31, 255, 251, 1, 255, 252, 1,
+        ],
+        Writes::Short(1),
+    );
+    let (mut session, mut events) = driver::start_with_options(
+        SessionId(90),
+        io,
+        SessionConfig::default(),
+        SessionOptions::MudClient {
+            size: TerminalSize {
+                columns: 255,
+                rows: 1,
+            },
+        },
+    );
+    let state = session.subscribe_options();
+    let expected = b"\xff\xfb\x18\xff\xfa\x18\0SOLIDIFY\xff\xf0\xff\xfb\x1f\xff\xfa\x1f\0\xff\xff\0\x01\xff\xf0\xff\xfd\x01\xff\xfe\x01";
+    scheduled_until(|| probe.written.lock().unwrap().len() == expected.len()).await;
+    assert_eq!(*probe.written.lock().unwrap(), expected);
+    assert_eq!(state.borrow().masking_generation, 1);
+    assert!(!state.borrow().remote_echo);
+    for _ in 0..5 {
+        bounded(events.recv()).await.unwrap();
+    }
+    // Current-thread runtime: no worker can run between these replacements.
+    for columns in 100..=200 {
+        session
+            .update_viewport(TerminalSize { columns, rows: 30 })
+            .unwrap();
+    }
+    scheduled_until(|| probe.written.lock().unwrap().len() == expected.len() + 9).await;
+    assert_eq!(
+        &probe.written.lock().unwrap()[expected.len()..],
+        b"\xff\xfa\x1f\0\xc8\0\x1e\xff\xf0"
+    );
+    bounded(session.disconnect()).await;
+    assert!(probe.dropped.load(Ordering::SeqCst));
+    assert_eq!(
+        session.update_viewport(TerminalSize::default()),
+        Err(SendError::Closed)
+    );
+}
+
+#[tokio::test]
+async fn negotiated_state_publishes_before_saturated_writer_and_cancellation_joins() {
+    let mut input = vec![255, 253, 24];
+    for _ in 0..32 {
+        input.extend([255, 250, 24, 1, 255, 240]);
+    }
+    input.extend([255, 251, 1]);
+    let (io, probe) = TestIo::new(input, Writes::StallAfter(0));
+    let (mut session, events) = driver::start_with_options(
+        SessionId(91),
+        io,
+        SessionConfig::default(),
+        SessionOptions::MudClient {
+            size: TerminalSize::default(),
+        },
+    );
+    let state = session.subscribe_options();
+    scheduled_until(|| state.borrow().remote_echo).await;
+    assert_eq!(events.events.len(), WRITER_CAPACITY + 1);
+    assert_eq!(state.borrow().masking_generation, 1);
+    bounded(session.disconnect()).await;
+    assert!(probe.dropped.load(Ordering::SeqCst));
+}

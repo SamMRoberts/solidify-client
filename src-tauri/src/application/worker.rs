@@ -94,7 +94,15 @@ async fn run(
                 connect_timeout: Duration::from_secs(2),
                 ..SessionConfig::default()
             };
-            if let Ok(pair) = sessions::connect(SessionId(connection.id), address, config).await {
+            let size = *connection.viewport.borrow();
+            if let Ok(pair) = sessions::connect_with_options(
+                SessionId(connection.id),
+                address,
+                config,
+                sessions::SessionOptions::MudClient { size },
+            )
+            .await
+            {
                 return Ok(pair);
             }
         }
@@ -116,6 +124,10 @@ async fn run(
         }),
     };
     connection.set_status(Phase::Connected, "Connected.");
+    let mut option_state = session.get().subscribe_options();
+    let mut options_open = true;
+    let mut viewport = connection.viewport.subscribe();
+    let _ = session.get().update_viewport(*viewport.borrow_and_update());
     let mut decoder = PresentationDecoder::new();
     let mut pending = VecDeque::new();
     let mut terminal_message = None;
@@ -124,6 +136,14 @@ async fn run(
     loop {
         if *stop.borrow() {
             return "Disconnected.".into();
+        }
+        let snapshot = *option_state.borrow_and_update();
+        {
+            let mut buffer = lock(&connection.buffer);
+            if buffer.options != snapshot {
+                buffer.options = snapshot;
+                connection.ready.notify_one();
+            }
         }
         let space = connection.space.notified();
         tokio::pin!(space);
@@ -165,6 +185,11 @@ async fn run(
                 }.to_owned();
                 if terminal_message.is_none() { terminal_message = Some(message.clone()); }
                 connection.set_status(Phase::Closed, message);
+            },
+            changed = option_state.changed(), if options_open => { options_open = changed.is_ok(); },
+            _ = viewport.changed() => {
+                let size = *viewport.borrow_and_update();
+                let _ = session.get().update_viewport(size);
             },
             request = requests.recv() => if let Some(request) = request {
                 let result = session.get().try_send_data(&request.bytes).map_err(|error| match error {

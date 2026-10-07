@@ -32,6 +32,7 @@ fn main() {
             commands::start_connection,
             commands::poll_connection,
             commands::send_line,
+            commands::update_viewport,
             commands::disconnect
         ])
         .on_window_event(|window, event| {
