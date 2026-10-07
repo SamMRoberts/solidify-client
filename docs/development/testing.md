@@ -131,13 +131,76 @@ synthetic text, one active client, bounded input, and loopback TCP.
 - **Unverified:** Windows/Linux runtime, public MUDs, and all deferred protocols.
   No live-server connections or real credentials were used.
 
+## Seventh-slice verification — 2026-10-06
+
+- **Automated macOS:** all 115 ordinary library-suite tests remain passing. The
+  non-native `profiles` suite passes 126 tests and the desktop suite 128, including
+  strict profile DTO checks. The demo's real-loopback example test also passes.
+  All 40 frontend tests pass. TypeScript, Prettier, Rust formatting, Clippy with
+  warnings denied for all three feature configurations, library/profile/desktop
+  builds and API documentation, and the configured production Tauri build passed.
+  All 107 relative Markdown links/heading targets and final whitespace/diff review
+  passed, including newly added files.
+  Cargo suites used locked/offline resolution; serde_json reuses the lockfile's
+  1.0.151 version. No other dependencies or prior tests were removed.
+- **Storage evidence:** temporary-directory tests cover first run, CRUD/round trips,
+  stable counters, exact record/name/file limits, invalid colors/endpoints/IDs,
+  duplicate names/JSON fields, unknown fields/versions, unreadable destinations,
+  ignored interrupted temporary files, injected create/write/flush/sync/replacement
+  failures, lock contention, explicit retry, bounded admission and shutdown waiting
+  for an accepted write. They verify preservation of the old file and published
+  state after failed commits. Power-loss filesystem durability is not simulated.
+- **Frontend evidence:** tests cover selection restoration, Custom behavior, late
+  responses after edits/connection intent, CRUD and duplicate names, explicit retry
+  after failed preference writes, older-success/newer-failure ordering, failed
+  editor/appearance saves, deletion,
+  active-session restrictions, valid preview/invalid draft/Cancel/Reset, transient
+  Custom appearance, unchanged ANSI classes and inverse defaults, visible-line
+  anchoring and font-driven debounced viewport delivery. Existing transcript bounds
+  and masking tests remain intact.
+- **Browser:** Playwright Chromium at `http://localhost:1420`, 1100×760 and 720×480,
+  passed page identity, meaningful content, no framework overlay, no console errors,
+  no horizontal overflow, and screenshot inspection. A temporary test-only IPC
+  fixture exercised create/edit/delete, connected restrictions, live font/color
+  preview and Cancel, explicit ANSI/inverse computed colors, scroll anchoring,
+  measured viewport invocations, masked-draft retention and synthetic send failure.
+  The real frontend without IPC displayed its storage warning and manual controls.
+  Browser plugin not available; Playwright used an existing installation and needed
+  sandbox escalation for macOS Chromium launch. Mocked bridge evidence does not
+  establish native persistence or transport behavior.
+- **Native macOS:** initial access was blocked by the locked Mac; later interaction
+  succeeded using a separately identified production acceptance bundle and a fresh
+  `/tmp` configuration directory. A named localhost:4001 profile saved through real
+  IPC, appeared in the versioned file, and restored after File → Close Window and
+  relaunch without connecting. Live Save changed retained/incoming text from 18 to
+  24 px and changed default text color; Reset preview/Cancel restored the applied
+  appearance without clearing output or exposing a protected draft. Real `protocol`
+  replies identified SOLIDIFY and changed from 95×16 to 71×12 after font change,
+  and to 113×22 after window zoom. Options-off reported unavailable values;
+  options-on restored identity and the latest measured dimensions.
+- **Native masking/cleanup:** the real demo's mask request changed the field to
+  secure input. A synthetic control-character command failed validation while
+  retaining the masked draft; an accepted replacement received only the fixed
+  discarded-input acknowledgment and restored normal entry. Manual mask on/off
+  protected a nonempty draft across appearance Cancel. Disconnect/reconnect gave
+  fresh output and unmasked entry. File → Close Window immediately following burst
+  requests exited the acceptance process and released its profile lock; relaunch
+  restored saved appearance and the demo accepted a fresh connection. This completes
+  the sixth slice's previously blocked native masking, resize, reconnect and close
+  checks. Queue-full/transient server-toggle cases retain automated/browser evidence.
+- **Remaining limits:** Windows/Linux runtime, public MUDs, installers/signing,
+  crash/power-loss durability and native multi-instance/corrupt-file recovery UI
+  remain unverified. Lock contention and corrupt-file recovery have automated
+  storage coverage and a manual checklist. Only synthetic local data was used;
+  the test app, development server and demo were stopped after verification.
+
 ## Verification layers
 
 | Layer | Location | Evidence required |
 |---|---|---|
 | Markdown review | Entire scaffold | Valid links, coherent instructions, accurate status, focused changes |
 | Protocol and domain unit tests | Telnet decoder, encoder, and negotiator tests colocated with their modules | Observable bytes/events and state transitions for deterministic inputs |
-| Backend integration | `src-tauri/tests/` | In-memory Telnet wire core and loopback TCP sessions implemented; application coordinator loopbacks are colocated under `src/application`; plugins and storage remain planned |
+| Backend integration | `src-tauri/tests/` | In-memory Telnet wire core and loopback TCP sessions implemented; application coordinator loopbacks are colocated under `src/application`; storage uses colocated temporary-directory tests; plugins remain planned |
 | Frontend checks | Colocated Vitest tests under `src/` | Rendering, interaction, accessibility, and bridge behavior |
 | Application acceptance | `tests/e2e/` | Manual checklist with the Rust loopback demo; no automated native driver suite |
 | Parser fuzzing | `fuzz/fuzz_targets/` | Bounded runs, reproducible failures, and regression inputs |

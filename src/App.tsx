@@ -12,10 +12,19 @@ import { ConnectionBar } from "./components/ConnectionBar";
 import { CommandInput } from "./components/CommandInput";
 import { Transcript } from "./terminal/Transcript";
 import { TranscriptModel } from "./terminal/model";
+import { profilesBridge, type ProfilesBridge } from "./bridge/profiles";
+import { useProfiles } from "./components/useProfiles";
+import { ProfileControls } from "./components/ProfileControls";
 
-export function App({ api = bridge }: { api?: Bridge }) {
-  const [host, setHost] = useState("localhost"),
-    [port, setPort] = useState("4000");
+export function App({
+  api = bridge,
+  profilesApi = profilesBridge,
+}: {
+  api?: Bridge;
+  profilesApi?: ProfilesBridge;
+}) {
+  const profiles = useProfiles(profilesApi);
+  const { host, port } = profiles;
   const [phase, setPhase] = useState<Phase>("idle"),
     [status, setStatus] = useState(
       "Ready. Start the local demo or enter a server address.",
@@ -97,6 +106,7 @@ export function App({ api = bridge }: { api?: Bridge }) {
       setError("Port must be between 1 and 65535.");
       return;
     }
+    profiles.touch();
     const attempt = ++generation.current;
     setBusy(true);
     setError("");
@@ -133,13 +143,17 @@ export function App({ api = bridge }: { api?: Bridge }) {
   }
   return (
     <main className="app">
+      <ProfileControls
+        profiles={profiles}
+        active={busy || (phase !== "idle" && phase !== "closed")}
+      />
       <ConnectionBar
         host={host}
         port={port}
         phase={phase}
         busy={busy}
-        onHost={setHost}
-        onPort={setPort}
+        onHost={(value) => profiles.endpoint("host", value)}
+        onPort={(value) => profiles.endpoint("port", value)}
         onConnect={() => {
           void start();
         }}
@@ -160,6 +174,7 @@ export function App({ api = bridge }: { api?: Bridge }) {
         model={model.current}
         revision={revision}
         onViewport={setViewport}
+        appearance={profiles.appearance}
       />
       {error && (
         <div className="error" role="alert">

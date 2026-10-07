@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { defaultAppearance, type Appearance } from "../bridge/profiles";
 import { observeViewport } from "./viewport";
 import type { ViewportSize, Style } from "../bridge/client";
 import type { TranscriptModel } from "./model";
@@ -29,9 +30,11 @@ export function Transcript({
   model,
   revision,
   onViewport,
+  appearance = defaultAppearance,
 }: {
   model: TranscriptModel;
   revision: number;
+  appearance?: Appearance;
   onViewport?: (size: ViewportSize) => void;
 }) {
   const viewport = useRef<HTMLDivElement>(null);
@@ -41,6 +44,7 @@ export function Transcript({
   }, [onViewport]);
   const follow = useRef(true);
   const anchor = useRef<{ id: string; offset: number } | null>(null);
+  const lastRevision = useRef(revision);
   const [unread, setUnread] = useState(false);
   const [bell, setBell] = useState(false);
   const bellCount = useRef(model.bells);
@@ -57,7 +61,7 @@ export function Transcript({
       node.scrollTop = node.scrollHeight;
       setUnread(false);
     } else {
-      setUnread(true);
+      if (lastRevision.current !== revision) setUnread(true);
       const saved = anchor.current;
       const line = saved
         ? node.querySelector<HTMLElement>(`[data-line="${saved.id}"]`)
@@ -68,7 +72,14 @@ export function Transcript({
           node.getBoundingClientRect().top -
           saved.offset;
     }
-  }, [model, revision]);
+    lastRevision.current = revision;
+  }, [
+    model,
+    revision,
+    appearance.fontSize,
+    appearance.foreground,
+    appearance.background,
+  ]);
   useLayoutEffect(() => {
     if (model.bells === bellCount.current) return;
     bellCount.current = model.bells;
@@ -102,6 +113,13 @@ export function Transcript({
     <section
       className={`output ${bell ? "bell" : ""}`}
       aria-label="Server output"
+      style={
+        {
+          "--transcript-font-size": `${appearance.fontSize}px`,
+          "--transcript-foreground": appearance.foreground,
+          "--transcript-background": appearance.background,
+        } as CSSProperties
+      }
     >
       <div
         className="transcript"

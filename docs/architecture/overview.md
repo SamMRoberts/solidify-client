@@ -2,7 +2,7 @@
 
 ## Status and direction
 
-This is the intended organization for a Rust/Tauri MUD client. The Rust Telnet wire core, bounded Tokio TCP session library, and independent UTF-8/basic ANSI presentation decoder are implemented in the single `src-tauri/` package. The feature-gated Tauri 2 application and React/TypeScript frontend now implement a single-connection desktop slice. Target platforms remain Windows, Linux, and macOS; native acceptance must be reported per OS. Persistence and external plugin APIs remain deferred. Internal IPC DTOs are documented in the [desktop contracts](desktop.md).
+This is the intended organization for a Rust/Tauri MUD client. The Rust Telnet wire core, bounded Tokio TCP session library, and independent UTF-8/basic ANSI presentation decoder are implemented in the single `src-tauri/` package. The feature-gated Tauri 2 application and React/TypeScript frontend now implement a single-connection desktop slice. Target platforms remain Windows, Linux, and macOS; native acceptance must be reported per OS. Named saved connections and appearance are implemented; other persistence and external plugin APIs remain deferred. Internal IPC DTOs are documented in the [desktop contracts](desktop.md).
 
 ## Implemented data flow
 
@@ -34,7 +34,7 @@ transcript renderer above these unchanged library APIs.
 | Sessions | Implemented numeric TCP connections, task ownership, default-deny and opt-in MUD negotiation, bounded queues, and teardown |
 | Protocols | Telnet decoding, encoding, generic negotiation, and UTF-8/basic ANSI presentation decoding implemented independently of UI/networking; TTYPE/NAWS/ECHO/SGA are implemented; other extensions remain planned |
 | Plugins | Compatibility, capabilities, callbacks, isolation, and lifecycle |
-| Storage | User settings, profiles, plugin namespaces, and safe persistence |
+| Storage | Implemented bounded saved connections and appearance; other settings and plugin namespaces remain planned |
 
 ## Application data flow
 
@@ -50,6 +50,6 @@ Each connection owns its parser state, asynchronous tasks, and subscriptions. Di
 
 The frontend cannot authorize its own native privileges. MUD text, markup, imported files, and plugin output remain untrusted at every boundary. Persistent user data belongs in application data locations; test state belongs in disposable directories.
 
-The desktop contracts define the implemented IPC boundary, including errors, limits, and lifecycle. Future persistence and plugin features must define their own contracts before implementation; no database or plugin engine is selected.
+The desktop contracts define the implemented IPC boundary, including errors, limits, and lifecycle. The [storage contracts](storage.md) define saved profiles, locking and recovery. Future persistence and plugin features must define their own contracts before implementation; no database or plugin engine is selected.
 
 See [protocol requirements](protocols.md), [plugin design](../plugins/design.md), and [testing strategy](../development/testing.md).

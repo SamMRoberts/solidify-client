@@ -2,7 +2,7 @@
 
 ## Scope
 
-Own reusable controls, panels, notifications, and layout. These instructions supplement ancestor `AGENTS.md` files for this subtree. Connection controls and command entry are implemented with explicit props and acceptance-based draft clearing.
+Own reusable controls, panels, notifications, and layout. These instructions supplement ancestor `AGENTS.md` files for this subtree. Connection controls, saved-profile dialogs, live appearance preview and command entry are implemented with explicit props and acceptance-based commits. Failed saves retain editor drafts; Cancel restores appearance. Profile selection cannot auto-connect.
 
 ## Working guidance
 

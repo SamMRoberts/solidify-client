@@ -2,13 +2,14 @@
 
 ## Current status
 
-solidify currently provides Telnet decoding/encoding, configurable Q-method negotiation, bounded Tokio TCP sessions, and independent UTF-8/basic ANSI presentation decoding, with unit, in-memory peer, and loopback integration tests. A Tauri 2 + React/TypeScript desktop client adds one connection, hostname resolution, bounded styled transcripts, command entry, and a local demo. TTYPE/NAWS, remote ECHO masking, and SGA are implemented through an opt-in session profile used by the desktop. Other option behavior, plugins, persistence, installers, CI and a published documentation site remain deferred. Directory guides distinguish the implemented core from reserved subsystems.
+solidify currently provides Telnet decoding/encoding, configurable Q-method negotiation, bounded Tokio TCP sessions, and independent UTF-8/basic ANSI presentation decoding, with unit, in-memory peer, and loopback integration tests. A Tauri 2 + React/TypeScript desktop client adds one connection, hostname resolution, bounded styled transcripts, command entry, and a local demo. TTYPE/NAWS, remote ECHO masking, and SGA are implemented through an opt-in session profile used by the desktop. Named saved connections and per-profile appearance are implemented with bounded backend storage. Other option behavior, plugins, other persistence, installers, CI and a published documentation site remain deferred. Directory guides distinguish the implemented core from reserved subsystems.
 
 ## Architecture and extensions
 
 - [Architecture overview](architecture/overview.md): boundaries, ownership, and intended data flow.
 - [Protocol requirements](architecture/protocols.md): implemented Telnet and presentation decoding, encoding, and negotiation contracts; planned coverage and acceptance criteria.
 - [Desktop contracts](architecture/desktop.md): application ownership, IPC, DNS, bounded delivery, transcript semantics, and deferred work.
+- [Saved connection storage](architecture/storage.md): schema, limits, locking, atomic replacement, recovery, selection, and appearance.
 - [TCP sessions](architecture/sessions.md): public API, ownership, queue bounds, cancellation, and shutdown contracts.
 - [Plugin design](plugins/design.md): extension points, runtime alternatives, isolation, and lifecycle.
 - [Plugin example guide](../examples/plugins/README.md): proposed runtime directories and future validation.

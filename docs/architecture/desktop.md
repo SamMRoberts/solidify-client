@@ -5,7 +5,7 @@
 The first desktop slice uses Tauri 2.12.1, React 19.3.0, TypeScript 7.0.2,
 Vite 8.3.3, and npm with tracked lockfiles. One main window owns one connection
 at a time. The optional Cargo `desktop` feature enables the native entrypoint,
-Tauri build support, and serialization. The ordinary library retains its
+Tauri build support, and the non-native `profiles` storage feature. The ordinary library retains its
 [protocol](protocols.md) and numeric-address [session](sessions.md) APIs.
 The application coordinator uses existing Tokio facilities and is testable
 without Tauri or a native webview.
@@ -70,7 +70,7 @@ user cancellations do not fabricate EOF text or promise to drain unseen data.
 
 ## Commands and trust boundary
 
-Five commands exist: `start_connection`, `poll_connection`, `send_line`,
+Five connection commands exist: `start_connection`, `poll_connection`, `send_line`,
 `update_viewport`, and `disconnect`. Every command verifies the `main` window and
 bundled application origin; debug builds also permit the configured localhost Vite origin. Dedicated
 DTOs serialize text, style snapshots, controls, statuses and IDs without adding
@@ -87,7 +87,7 @@ and [capability boundary](https://v2.tauri.app/security/capabilities/).
 
 Text is rendered as React text nodes with classes derived from typed styles.
 It is never HTML, a navigable link, or executable markup. The client implements
-no input/transcript logging, local echo, history, credential storage or profiles.
+no input/transcript logging, local echo, history, or credential storage.
 Automatic and manual masking obscure the command field visually; transport
 remains plain TCP. ECHO is a server convention, not password-content detection.
 
@@ -145,10 +145,22 @@ The compact reason distinguishes a server request from retained draft protection
 New connections reset the generation, manual control, and draft; no input is
 logged, locally echoed, stored, or automatically replayed.
 
+## Saved connections and appearance
+
+A compact profile selector supports Custom, Save as, Edit and confirmed Delete.
+The backend owns bounded versioned storage; a profile selection only supplies
+a snapshot to the ordinary validated connection command. Appearance previews use
+transcript-scoped defaults and preserve explicit ANSI colors, scroll anchoring,
+NAWS measurement and mask protection. Six additional authorized profile commands
+load/retry, create, update, update appearance, delete and remember selection.
+Window/application shutdown also awaits accepted storage operations. See the
+[canonical storage contracts](storage.md) for schema, bounds, failure recovery and
+exact UI commit/rollback behavior.
+
 ## Deferred work
 
-Multiple sessions, saved profiles, TLS, other option handlers,
-persistence, plugins, extended colors, cursor addressing, screen editing,
+Multiple sessions, credentials, TLS, other option handlers,
+other persistence, plugins, extended colors, cursor addressing, screen editing,
 terminal emulation, installers, signing, and CI remain deferred. The local demo
 and macOS checks do not establish Windows/Linux or public-MUD compatibility.
 See [setup and manual checks](../development/setup.md#manual-desktop-checklist).

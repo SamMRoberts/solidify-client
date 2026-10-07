@@ -137,3 +137,49 @@ it("ignores stale completions and stops with cleanup after bridge errors", async
   expect(bridge.viewport).toHaveBeenCalledTimes(2);
   next.stop();
 });
+
+it("font metric changes recalculate NAWS through the existing debounce path", async () => {
+  vi.useFakeTimers();
+  const node = document.createElement("div");
+  document.body.append(node);
+  node.style.cssText = "padding: 0px; line-height: 20px";
+  Object.defineProperties(node, {
+    clientWidth: { value: 800 },
+    clientHeight: { value: 480 },
+  });
+  const metrics = vi
+    .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+    .mockReturnValue({ width: 100 } as DOMRect);
+  let resized!: () => void;
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      constructor(callback: () => void) {
+        resized = callback;
+      }
+      observe() {}
+      disconnect() {}
+    },
+  );
+  const bridge = api();
+  const delivery = viewportDelivery(bridge, "font-test", vi.fn());
+  const stop = observeViewport(node, delivery.update);
+  await vi.advanceTimersByTimeAsync(100);
+  expect(bridge.viewport).toHaveBeenLastCalledWith("font-test", {
+    columns: 80,
+    rows: 24,
+  });
+  metrics.mockReturnValue({ width: 150 } as DOMRect);
+  node.style.lineHeight = "30px";
+  resized();
+  await vi.advanceTimersByTimeAsync(99);
+  expect(bridge.viewport).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(1);
+  expect(bridge.viewport).toHaveBeenLastCalledWith("font-test", {
+    columns: 53,
+    rows: 16,
+  });
+  stop();
+  delivery.stop();
+  node.remove();
+});

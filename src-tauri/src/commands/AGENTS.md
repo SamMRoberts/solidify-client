@@ -2,7 +2,7 @@
 
 ## Scope
 
-Own the validated entrypoints called through the frontend bridge. These instructions supplement ancestor `AGENTS.md` files for this subtree. Five main-window commands implement start, poll, send-line, viewport updates, and disconnect. Their DTOs are separate from protocol types; all commands verify window identity and application origin.
+Own the validated entrypoints called through the frontend bridge. These instructions supplement ancestor `AGENTS.md` files for this subtree. Connection commands implement start, poll, send-line, viewport updates, and disconnect. Six profile commands implement load/retry, create, update, appearance-only update, delete and selection; they expose no paths and never open sockets. Their DTOs are separate from protocol types; all commands verify window identity and application origin.
 
 ## Working guidance
 

@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
-use solidify_client::application::Application;
+use solidify_client::{application::Application, storage::ProfileService};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -19,7 +19,9 @@ fn shutdown(app: &tauri::AppHandle) {
     }
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        app.state::<Arc<Application>>().shutdown().await;
+        let connections = app.state::<Arc<Application>>();
+        let profiles = app.state::<Arc<ProfileService>>();
+        tokio::join!(connections.shutdown(), profiles.shutdown());
         app.state::<Shutdown>().done.store(true, Ordering::SeqCst);
         app.exit(0);
     });
@@ -28,12 +30,24 @@ fn main() {
     let app = tauri::Builder::default()
         .manage(Arc::new(Application::new()))
         .manage(Shutdown::default())
+        .setup(|app| {
+            app.manage(Arc::new(ProfileService::new(
+                app.path().app_config_dir().ok(),
+            )));
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::start_connection,
             commands::poll_connection,
             commands::send_line,
             commands::update_viewport,
-            commands::disconnect
+            commands::disconnect,
+            commands::profiles::load_profiles,
+            commands::profiles::create_profile,
+            commands::profiles::update_profile,
+            commands::profiles::update_profile_appearance,
+            commands::profiles::delete_profile,
+            commands::profiles::select_profile
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event

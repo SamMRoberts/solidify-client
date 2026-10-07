@@ -7,8 +7,10 @@ solidify is a Rust/Tauri MUD client targeting Windows, Linux, and macOS.
 The first desktop client uses **Tauri 2 + React + TypeScript**. It supports one
 plain TCP connection, IPv4/IPv6 and ASCII hostnames, streaming Unicode/basic ANSI
 styles, bounded scrollback, command entry, automatic/manual input masking, and clean
-cancellation/disconnect. A local demo exercises the real TCP/Telnet/presentation
-path without credentials or a public server.
+cancellation/disconnect. Named saved connections restore the last selection without
+automatically connecting; each profile has live-preview transcript appearance.
+A local demo exercises the real TCP/Telnet/presentation path without credentials
+or a public server.
 
 The independent Rust library retains bounded Telnet decoding/encoding, RFC 1143
 Q-method negotiation, numeric-address sessions, and UTF-8/basic ANSI presentation
@@ -16,7 +18,8 @@ decoding. Default sessions deny all options; desktop sessions opt into TTYPE,
 NAWS, remote ECHO, and SGA. Protocol modules remain independent
 of Tokio; the crate pins Tokio 1.53.2. Tauri is gated behind the `desktop` feature.
 See [protocols](docs/architecture/protocols.md), [sessions](docs/architecture/sessions.md),
-and [desktop contracts](docs/architecture/desktop.md).
+[desktop contracts](docs/architecture/desktop.md), and
+[saved connection storage](docs/architecture/storage.md).
 
 ## Run locally
 
@@ -55,7 +58,7 @@ Clippy, build, documentation, desktop-feature and frontend commands are in
 
 ## Deferred capabilities
 
-Multiple sessions, profiles, TLS, other Telnet option handlers, persistence,
+Multiple sessions, credentials, TLS, other Telnet option handlers, other persistence,
 plugins, extended colors, MXP/GMCP/ATCP/MSP, cursor addressing,
 full terminal emulation, installers/signing and CI remain deferred. Windows/Linux
 runtime and public-MUD acceptance remain unverified. Rust and IPC interfaces are

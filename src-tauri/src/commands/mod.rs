@@ -1,4 +1,5 @@
 //! Narrow desktop DTOs. Protocol types and their APIs remain serialization-free.
+pub mod profiles;
 use serde::Serialize;
 use solidify_client::{
     application::{Application, Phase},
